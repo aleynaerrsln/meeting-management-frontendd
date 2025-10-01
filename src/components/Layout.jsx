@@ -4,6 +4,7 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -20,13 +21,12 @@ const Layout = ({ children }) => {
     { name: 'Kullanıcılar', path: '/users', icon: '👥' },
     { name: 'Toplantılar', path: '/meetings', icon: '📅' },
     { name: 'Çalışma Raporları', path: '/work-reports', icon: '📝' },
-    { name: 'Raporlar', path: '/reports', icon: '📈' },
   ];
 
   const userMenuItems = [
     { name: 'Dashboard', path: '/dashboard', icon: '📊' },
-    { name: 'Toplantılarım', path: '/my-meetings', icon: '📅' },
-    { name: 'Çalışma Raporlarım', path: '/my-work-reports', icon: '📝' },
+    { name: 'Toplantılarım', path: '/meetings', icon: '📅' },
+    { name: 'Çalışma Raporlarım', path: '/work-reports', icon: '📝' },
   ];
 
   const menuItems = isAdmin ? adminMenuItems : userMenuItems;
@@ -116,12 +116,41 @@ const Layout = ({ children }) => {
                 {menuItems.find(item => item.path === location.pathname)?.name || 'Dashboard'}
               </h2>
             </div>
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium"
-            >
-              Çıkış Yap
-            </button>
+            
+            {/* User Menu Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium"
+              >
+                <span>{user?.firstName}</span>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {/* Dropdown Menu */}
+              {showUserMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                  <button
+                    onClick={() => {
+                      navigate('/profile');
+                      setShowUserMenu(false);
+                    }}
+                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    👤 Profil Ayarları
+                  </button>
+                  <div className="border-t border-gray-200 my-1"></div>
+                  <button
+                    onClick={handleLogout}
+                    className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                  >
+                    🚪 Çıkış Yap
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
@@ -132,6 +161,14 @@ const Layout = ({ children }) => {
           </div>
         </main>
       </div>
+
+      {/* Dropdown dışına tıklanınca kapat */}
+      {showUserMenu && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setShowUserMenu(false)}
+        ></div>
+      )}
     </div>
   );
 };
