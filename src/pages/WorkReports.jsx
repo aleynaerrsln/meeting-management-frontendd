@@ -10,6 +10,7 @@ const WorkReports = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingReport, setEditingReport] = useState(null);
   const [exporting, setExporting] = useState(false);
+  const [expandedReports, setExpandedReports] = useState({});
   const [filters, setFilters] = useState({
     userId: '',
     week: '',
@@ -30,6 +31,12 @@ const WorkReports = () => {
     if (isAdmin) {
       fetchUsers();
     }
+  }, []);
+
+  useEffect(() => {
+    if (!loading) {
+      fetchReports();
+    }
   }, [filters]);
 
   const fetchReports = async () => {
@@ -42,10 +49,18 @@ const WorkReports = () => {
       if (filters.month) params.month = filters.month;
       if (filters.status) params.status = filters.status;
 
+      console.log('🔍 Rapor Filtresi:', params);
+
       const response = await axiosInstance.get('/work-reports', { params });
+      
+      console.log('📊 Gelen Raporlar:', response.data);
+      console.log('🔢 Rapor Sayısı:', response.data.data?.length);
+      console.log('👤 Mevcut Kullanıcı ID:', user?.id);
+      
       setReports(response.data.data || []);
     } catch (error) {
-      console.error('Raporlar yüklenemedi:', error);
+      console.error('❌ Raporlar yüklenemedi:', error);
+      console.error('❌ Hata detayı:', error.response?.data);
     } finally {
       setLoading(false);
     }
@@ -223,75 +238,68 @@ const WorkReports = () => {
               </>
             )}
           </button>
-          <button
-            onClick={() => setShowModal(true)}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium"
-          >
-            + Yeni Rapor
-          </button>
+          {!isAdmin && (
+            <button
+              onClick={() => setShowModal(true)}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium"
+            >
+              + Yeni Rapor
+            </button>
+          )}
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          {isAdmin && (
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Kullanıcı</label>
-              <select
-                value={filters.userId}
-                onChange={(e) => setFilters({ ...filters, userId: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="">Tüm Kullanıcılar</option>
-                {users.map(u => (
-                  <option key={u._id} value={u._id}>{u.firstName} {u.lastName}</option>
-                ))}
-              </select>
-            </div>
-          )}
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Hafta</label>
+      {isAdmin && (
+        <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <select
+              value={filters.userId}
+              onChange={(e) => setFilters({ ...filters, userId: e.target.value })}
+              className="px-3 py-2 border rounded-lg text-sm"
+            >
+              <option value="">Tüm Kullanıcılar</option>
+              {users.map(user => (
+                <option key={user._id} value={user._id}>
+                  {user.firstName} {user.lastName}
+                </option>
+              ))}
+            </select>
+
             <input
               type="number"
-              placeholder="Hafta No"
+              placeholder="Hafta"
               value={filters.week}
               onChange={(e) => setFilters({ ...filters, week: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+              className="px-3 py-2 border rounded-lg text-sm"
               min="1"
               max="53"
             />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Yıl</label>
+
             <input
               type="number"
+              placeholder="Yıl"
               value={filters.year}
               onChange={(e) => setFilters({ ...filters, year: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+              className="px-3 py-2 border rounded-lg text-sm"
             />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Ay</label>
-            <select
+
+            <input
+              type="number"
+              placeholder="Ay"
               value={filters.month}
               onChange={(e) => setFilters({ ...filters, month: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="">Tüm Aylar</option>
-              {Array.from({ length: 12 }, (_, i) => (
-                <option key={i + 1} value={i + 1}>{i + 1}. Ay</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Durum</label>
+              className="px-3 py-2 border rounded-lg text-sm"
+              min="1"
+              max="12"
+            />
+
             <select
               value={filters.status}
               onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+              className="px-3 py-2 border rounded-lg text-sm"
             >
-              <option value="">Tümü</option>
+              <option value="">Tüm Durumlar</option>
               <option value="draft">Taslak</option>
               <option value="submitted">Gönderildi</option>
               <option value="approved">Onaylandı</option>
@@ -299,22 +307,22 @@ const WorkReports = () => {
             </select>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <p className="text-sm text-gray-600">Toplam Rapor</p>
-          <p className="text-2xl font-bold text-gray-900">{reports.length}</p>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <p className="text-sm text-gray-600 mb-1">Toplam Rapor</p>
+          <p className="text-3xl font-bold text-gray-900">{reports.length}</p>
         </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <p className="text-sm text-gray-600">Toplam Saat</p>
-          <p className="text-2xl font-bold text-indigo-600">{totalHours}</p>
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <p className="text-sm text-gray-600 mb-1">Toplam Saat</p>
+          <p className="text-3xl font-bold text-indigo-600">{totalHours}h</p>
         </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <p className="text-sm text-gray-600">Ortalama Saat</p>
-          <p className="text-2xl font-bold text-green-600">
-            {reports.length > 0 ? (totalHours / reports.length).toFixed(1) : 0}
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <p className="text-sm text-gray-600 mb-1">Ortalama Saat</p>
+          <p className="text-3xl font-bold text-green-600">
+            {reports.length > 0 ? (totalHours / reports.length).toFixed(1) : 0}h
           </p>
         </div>
       </div>
@@ -324,46 +332,149 @@ const WorkReports = () => {
         {reports.map((report) => (
           <div
             key={report._id}
-            className={`bg-white rounded-xl shadow-sm border p-6 hover:shadow-md transition ${
-              report.meeting ? 'border-blue-300 bg-blue-50' : 'border-gray-200'
-            }`}
+            className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition"
           >
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
+            {/* Rapor Başlığı - Her Zaman Görünür */}
+            <div className="p-4">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    {getStatusBadge(report.status)}
+                    <span className="text-sm text-gray-500">
+                      {new Date(report.date).toLocaleDateString('tr-TR')}
+                    </span>
+                    {report.project && (
+                      <span className="text-sm font-semibold text-gray-700">
+                        📁 {report.project}
+                      </span>
+                    )}
+                    
+                    {/* Toplantı Badge */}
+                    {report.meeting && (
+                      <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                        📅 {report.meeting.title}
+                      </span>
+                    )}
+
+                    {/* Gizli Badge */}
+                    {report.isPrivate && (
+                      <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs font-medium">
+                        🔒 Gizli
+                      </span>
+                    )}
+
+                    {/* Paylaşıldı Badge */}
+                    {report.sharedWith && report.sharedWith.length > 0 && (
+                      <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">
+                        👥 {report.sharedWith.length} kişi ile paylaşıldı
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Kısa Özet */}
+                  <p className="text-gray-700 text-sm line-clamp-2 mb-3">
+                    {report.workDescription}
+                  </p>
+
+                  {/* Özet Bilgiler */}
+                  <div className="flex items-center gap-4 text-xs text-gray-600">
+                    <span>⏰ {report.hoursWorked} saat</span>
+                    <span>📅 {report.week}. hafta</span>
+                    {isAdmin && (
+                      <span>👤 {report.user.firstName} {report.user.lastName}</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Sağ Taraf Butonları */}
+                <div className="flex flex-col gap-2 ml-4">
+                  {/* Detayları Göster Butonu */}
+                  <button
+                    onClick={() => setExpandedReports(prev => ({
+                      ...prev,
+                      [report._id]: !prev[report._id]
+                    }))}
+                    className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded flex items-center gap-1 whitespace-nowrap"
+                  >
+                    {expandedReports[report._id] ? '▲ Gizle' : '▼ Detay'}
+                  </button>
+
+                  {/* Toplantı raporuysa toplantıya git */}
                   {report.meeting && (
-                    <span className="px-3 py-1 bg-blue-600 text-white rounded-full text-xs font-medium">
-                      📅 Toplantı Raporu
-                    </span>
+                    <button
+                      onClick={() => window.location.href = `/meetings/${report.meeting._id}`}
+                      className="px-3 py-1 text-xs bg-blue-600 text-white hover:bg-blue-700 rounded whitespace-nowrap"
+                    >
+                      📅 Toplantı
+                    </button>
                   )}
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    {report.project || 'Genel Çalışma'}
-                  </h3>
-                  {getStatusBadge(report.status)}
-                  {report.isPrivate && (
-                    <span className="px-2 py-1 bg-gray-600 text-white rounded text-xs">
-                      🔒 Gizli
-                    </span>
+
+                  {/* Düzenle/Sil Butonları */}
+                  {!report.meeting && (!isAdmin || report.user._id === user.id) && (
+                    <>
+                      <button
+                        onClick={() => handleEdit(report)}
+                        className="px-3 py-1 text-xs text-indigo-600 hover:bg-indigo-50 rounded"
+                      >
+                        ✏️ Düzenle
+                      </button>
+                      <button
+                        onClick={() => handleDelete(report._id)}
+                        className="px-3 py-1 text-xs text-red-600 hover:bg-red-50 rounded"
+                      >
+                        🗑️ Sil
+                      </button>
+                    </>
+                  )}
+
+                  {/* Admin onay butonları */}
+                  {isAdmin && report.status === 'submitted' && (
+                    <>
+                      <button
+                        onClick={() => handleStatusChange(report._id, 'approved')}
+                        className="px-3 py-1 text-xs bg-green-600 text-white hover:bg-green-700 rounded"
+                      >
+                        ✓ Onayla
+                      </button>
+                      <button
+                        onClick={() => handleStatusChange(report._id, 'rejected')}
+                        className="px-3 py-1 text-xs bg-red-600 text-white hover:bg-red-700 rounded"
+                      >
+                        ✗ Reddet
+                      </button>
+                    </>
                   )}
                 </div>
-                <p className="text-gray-600 mb-4">{report.workDescription}</p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Tarih</p>
-                    <p className="text-sm font-medium text-gray-900">
-                      {new Date(report.date).toLocaleDateString('tr-TR')}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Saat</p>
+              </div>
+            </div>
+
+            {/* Açılır Detaylar */}
+            {expandedReports[report._id] && (
+              <div className="px-4 pb-4 border-t border-gray-100 pt-4">
+                {/* Tam Açıklama */}
+                <div className="mb-4">
+                  <p className="text-xs font-medium text-gray-700 mb-2">📝 Çalışma Detayları:</p>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded">
+                    {report.workDescription}
+                  </p>
+                </div>
+
+                {/* Detaylı Bilgiler */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                  <div className="bg-gray-50 p-3 rounded">
+                    <p className="text-xs text-gray-500 mb-1">Çalışma Saati</p>
                     <p className="text-sm font-medium text-gray-900">{report.hoursWorked} saat</p>
                   </div>
-                  <div>
+                  <div className="bg-gray-50 p-3 rounded">
                     <p className="text-xs text-gray-500 mb-1">Hafta</p>
                     <p className="text-sm font-medium text-gray-900">{report.week}. hafta</p>
                   </div>
+                  <div className="bg-gray-50 p-3 rounded">
+                    <p className="text-xs text-gray-500 mb-1">Yıl</p>
+                    <p className="text-sm font-medium text-gray-900">{report.year}</p>
+                  </div>
                   {isAdmin && (
-                    <div>
+                    <div className="bg-gray-50 p-3 rounded">
                       <p className="text-xs text-gray-500 mb-1">Kullanıcı</p>
                       <p className="text-sm font-medium text-gray-900">
                         {report.user.firstName} {report.user.lastName}
@@ -371,80 +482,30 @@ const WorkReports = () => {
                     </div>
                   )}
                 </div>
-                
-                {/* YENİ: Toplantı Bilgisi */}
-                {report.meeting && (
-                  <div className="mt-3 p-3 bg-blue-100 rounded-lg border border-blue-200">
-                    <p className="text-xs font-medium text-blue-900 mb-1">📅 Toplantı:</p>
-                    <p className="text-sm text-blue-800 font-medium">{report.meeting.title}</p>
-                  </div>
-                )}
 
-                {/* YENİ: Paylaşım Bilgisi */}
+                {/* Paylaşım Detayları (Sadece detay açıldığında) */}
                 {report.sharedWith && report.sharedWith.length > 0 && (
-                  <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-200">
-                    <p className="text-xs font-medium text-green-900 mb-1">👥 Paylaşıldı:</p>
-                    <p className="text-sm text-green-800">
-                      {report.sharedWith.map(u => `${u.firstName} ${u.lastName}`).join(', ')}
-                    </p>
+                  <div className="bg-green-50 p-3 rounded border border-green-200 mb-4">
+                    <p className="text-xs font-medium text-green-900 mb-2">👥 Paylaşıldığı Kişiler:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {report.sharedWith.map(u => (
+                        <span key={u._id} className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">
+                          {u.firstName} {u.lastName}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 )}
 
+                {/* Notlar */}
                 {report.notes && (
-                  <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                    <p className="text-xs font-medium text-gray-700 mb-1">Notlar:</p>
-                    <p className="text-sm text-gray-600">{report.notes}</p>
+                  <div className="bg-amber-50 p-3 rounded border border-amber-200">
+                    <p className="text-xs font-medium text-amber-900 mb-1">💡 Ekstra Notlar:</p>
+                    <p className="text-sm text-amber-800">{report.notes}</p>
                   </div>
                 )}
               </div>
-              
-              <div className="flex flex-col gap-2 ml-4">
-                {/* Toplantı raporları düzenlenemez/silinemez */}
-                {!report.meeting && (!isAdmin || report.user._id === user.id) && (
-                  <>
-                    <button
-                      onClick={() => handleEdit(report)}
-                      className="px-3 py-1 text-sm text-indigo-600 hover:bg-indigo-50 rounded"
-                    >
-                      Düzenle
-                    </button>
-                    <button
-                      onClick={() => handleDelete(report._id)}
-                      className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded"
-                    >
-                      Sil
-                    </button>
-                  </>
-                )}
-                
-                {/* Toplantı raporuysa toplantıya git */}
-                {report.meeting && (
-                  <button
-                    onClick={() => window.location.href = `/meetings/${report.meeting._id}`}
-                    className="px-3 py-1 text-xs bg-blue-600 text-white hover:bg-blue-700 rounded"
-                  >
-                    📅 Toplantıya Git
-                  </button>
-                )}
-
-                {isAdmin && report.status === 'submitted' && (
-                  <div className="flex flex-col gap-1">
-                    <button
-                      onClick={() => handleStatusChange(report._id, 'approved')}
-                      className="px-3 py-1 text-xs bg-green-600 text-white hover:bg-green-700 rounded"
-                    >
-                      ✓ Onayla
-                    </button>
-                    <button
-                      onClick={() => handleStatusChange(report._id, 'rejected')}
-                      className="px-3 py-1 text-xs bg-red-600 text-white hover:bg-red-700 rounded"
-                    >
-                      ✗ Reddet
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
+            )}
           </div>
         ))}
 

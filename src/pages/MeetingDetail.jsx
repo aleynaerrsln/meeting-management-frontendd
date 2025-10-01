@@ -10,12 +10,11 @@ const MeetingDetail = () => {
   const [meeting, setMeeting] = useState(null);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showAttendance, setShowAttendance] = useState(false);
   const [activeSection, setActiveSection] = useState('info');
   const [notification, setNotification] = useState(null);
   const [isAddingNote, setIsAddingNote] = useState(false);
-  const [showReportModal, setShowReportModal] = useState(false); // YENİ
-  const [reportFormData, setReportFormData] = useState({ // YENİ
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportFormData, setReportFormData] = useState({
     assignToUser: '',
     isPrivate: false,
     sharedWith: []
@@ -100,7 +99,6 @@ const MeetingDetail = () => {
     }
   };
 
-  // YENİ: Toplantıyı Tamamla (Sadece Status Değiştir)
   const handleCompleteMeeting = async () => {
     const attendedCount = meeting.attendance.filter(a => a.status === 'attended').length;
     const notesCount = meeting.notes?.length || 0;
@@ -112,7 +110,7 @@ const MeetingDetail = () => {
     try {
       await axiosInstance.put(`/meetings/${id}`, { status: 'completed' });
       fetchMeetingDetail();
-      setActiveSection('info'); // Genel bilgiler sekmesine geç
+      setActiveSection('info');
       showNotification('✅ Toplantı tamamlandı! Rapor "Genel Bilgiler" sekmesinde görüntülenebilir.', 'success');
     } catch (error) {
       console.error('Toplantı tamamlama hatası:', error);
@@ -120,20 +118,23 @@ const MeetingDetail = () => {
     }
   };
 
-  // YENİ: Rapor Oluştur (Modal'dan)
   const handleCreateReport = async () => {
     try {
-      await axiosInstance.post(`/meetings/${id}/create-report`, reportFormData);
+      console.log('📤 Gönderilen Rapor Verisi:', reportFormData);
+      
+      const response = await axiosInstance.post(`/meetings/${id}/create-report`, reportFormData);
+      
+      console.log('✅ Rapor Yanıtı:', response.data);
 
       setShowReportModal(false);
       showNotification('✅ Rapor çalışma raporlarına gönderildi!', 'success');
       
-      // 2 saniye sonra çalışma raporları sayfasına yönlendir
       setTimeout(() => {
         navigate('/work-reports');
       }, 2000);
     } catch (error) {
-      console.error('Rapor oluşturma hatası:', error);
+      console.error('❌ Rapor oluşturma hatası:', error);
+      console.error('❌ Hata detayı:', error.response?.data);
       showNotification(error.response?.data?.message || 'Rapor oluşturulamadı', 'error');
     }
   };
@@ -144,10 +145,10 @@ const MeetingDetail = () => {
     try {
       await axiosInstance.put(`/meetings/${id}`, { status: 'cancelled' });
       fetchMeetingDetail();
-      showNotification('Toplantı iptal edildi', 'warning');
+      showNotification('Toplantı iptal edildi!', 'success');
     } catch (error) {
-      console.error('Toplantı iptal hatası:', error);
-      showNotification(error.response?.data?.message || 'Toplantı iptal edilemedi', 'error');
+      console.error('İptal hatası:', error);
+      showNotification('Toplantı iptal edilemedi', 'error');
     }
   };
 
@@ -157,44 +158,43 @@ const MeetingDetail = () => {
       completed: 'bg-green-100 text-green-800',
       cancelled: 'bg-red-100 text-red-800',
     };
-    return colors[status] || colors.planned;
+    return colors[status] || 'bg-gray-100 text-gray-800';
   };
 
   const getStatusText = (status) => {
     const texts = {
-      planned: '📅 Planlandı',
-      completed: '✅ Tamamlandı',
-      cancelled: '❌ İptal Edildi',
+      planned: 'Planlandı',
+      completed: 'Tamamlandı',
+      cancelled: 'İptal Edildi',
     };
     return texts[status] || status;
   };
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-xl text-gray-600">Yükleniyor...</div>
       </div>
     );
   }
 
   if (!meeting) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <p className="text-gray-500">Toplantı bulunamadı</p>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-xl text-gray-600">Toplantı bulunamadı</div>
       </div>
     );
   }
 
-  const attendedCount = meeting.attendance?.filter(a => a.status === 'attended').length || 0;
-  const notAttendedCount = meeting.attendance?.filter(a => a.status === 'not_attended').length || 0;
-  const pendingCount = meeting.attendance?.filter(a => a.status === 'pending').length || 0;
+  const attendedCount = meeting.attendance.filter(a => a.status === 'attended').length;
+  const notAttendedCount = meeting.attendance.filter(a => a.status === 'not_attended').length;
+  const pendingCount = meeting.attendance.filter(a => a.status === 'pending').length;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      {/* Notification */}
+    <div>
       {notification && (
         <div className="fixed top-4 right-4 z-50 animate-fade-in">
-          <div className={`rounded-lg shadow-lg p-4 ${
+          <div className={`px-6 py-3 rounded-lg shadow-lg ${
             notification.type === 'success' ? 'bg-green-50 border border-green-200' :
             notification.type === 'error' ? 'bg-red-50 border border-red-200' :
             'bg-yellow-50 border border-yellow-200'
@@ -210,7 +210,7 @@ const MeetingDetail = () => {
         </div>
       )}
 
-      {/* YENİ: Rapor Oluşturma Modalı */}
+      {/* Rapor Oluşturma Modalı */}
       {showReportModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -313,7 +313,7 @@ const MeetingDetail = () => {
                 onClick={handleCreateReport}
                 className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
               >
-                ✅ Rapor Oluştur ve Tamamla
+                ✅ Rapor Oluştur ve Gönder
               </button>
             </div>
           </div>
@@ -395,7 +395,7 @@ const MeetingDetail = () => {
         </nav>
       </div>
 
-      {/* Genel Bilgiler */}
+      {/* Content Sections */}
       {activeSection === 'info' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -404,18 +404,27 @@ const MeetingDetail = () => {
               <div className="space-y-3">
                 <div>
                   <p className="text-sm text-gray-500">Tarih</p>
-                  <p className="font-medium">{new Date(meeting.date).toLocaleDateString('tr-TR')}</p>
+                  <p className="text-base font-medium text-gray-900">
+                    {new Date(meeting.date).toLocaleDateString('tr-TR')}
+                  </p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Saat</p>
-                  <p className="font-medium">{meeting.time}</p>
+                  <p className="text-base font-medium text-gray-900">{meeting.time}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Yer</p>
-                  <p className="font-medium">{meeting.location}</p>
+                  <p className="text-base font-medium text-gray-900">{meeting.location}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Oluşturan</p>
+                  <p className="text-base font-medium text-gray-900">
+                    {meeting.createdBy?.firstName} {meeting.createdBy?.lastName}
+                  </p>
                 </div>
               </div>
             </div>
+
             <div className="bg-white rounded-lg shadow-sm border p-6">
               <h3 className="text-lg font-semibold mb-4">İstatistikler</h3>
               <div className="space-y-3">
@@ -443,7 +452,7 @@ const MeetingDetail = () => {
             </div>
           </div>
 
-          {/* YENİ: Toplantı Raporu Özeti */}
+          {/* Toplantı Raporu Özeti */}
           {meeting.status === 'completed' && (
             <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg shadow-lg border-2 border-green-300 p-6">
               <div className="flex justify-between items-start mb-4">
@@ -468,7 +477,6 @@ const MeetingDetail = () => {
                 )}
               </div>
 
-              {/* Rapor İçeriği */}
               <div className="bg-white rounded-lg p-6 shadow-sm">
                 <h4 className="font-semibold text-gray-900 mb-3 text-lg">
                   {meeting.title} - Toplantı Özeti
@@ -509,49 +517,82 @@ const MeetingDetail = () => {
                             {index + 1}. {note.title}
                           </h6>
                           <span className="text-xs text-gray-500">
-                            {new Date(note.createdAt).toLocaleString('tr-TR')}
+                            {new Date(note.createdAt).toLocaleDateString('tr-TR')}
                           </span>
                         </div>
-                        <p className="text-gray-700 whitespace-pre-wrap text-sm leading-relaxed">
-                          {note.content}
-                        </p>
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap">{note.content}</p>
                         <p className="text-xs text-gray-500 mt-2">
-                          ✍️ {note.createdBy?.firstName} {note.createdBy?.lastName}
+                          {note.createdBy?.firstName} {note.createdBy?.lastName}
                         </p>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500 text-center py-4 italic">
-                    Toplantıda not alınmamış
-                  </p>
+                  <p className="text-gray-500 text-sm">Toplantıda not eklenmedi.</p>
                 )}
               </div>
             </div>
           )}
+
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <h3 className="text-lg font-semibold mb-4">Katılımcılar ({meeting.participants.length})</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {meeting.participants.map((participant) => (
+                <div
+                  key={participant._id}
+                  className="flex items-center p-3 bg-gray-50 rounded-lg"
+                >
+                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                    <span className="text-blue-600 font-semibold">
+                      {participant.firstName[0]}{participant.lastName[0]}
+                    </span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-900">
+                      {participant.firstName} {participant.lastName}
+                    </p>
+                    <p className="text-sm text-gray-500">{participant.email}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Yoklama */}
+      {/* Yoklama Section */}
       {activeSection === 'attendance' && (
         <div className="bg-white rounded-lg shadow-sm border">
           <div className="px-6 py-4 border-b">
-            <h3 className="text-lg font-semibold">Yoklama Listesi</h3>
+            <h3 className="text-lg font-semibold">Katılım Durumu</h3>
+            <p className="text-sm text-gray-600 mt-1">
+              Katılan: {attendedCount} / Katılmayan: {notAttendedCount} / Bekleyen: {pendingCount}
+            </p>
           </div>
           <div className="divide-y">
-            {meeting.participants?.map(participant => {
-              const attendance = meeting.attendance?.find(a => a.user._id === participant._id);
-              const status = attendance?.status || 'pending';
+            {meeting.attendance.map((attendance) => {
+              const participant = meeting.participants.find(p => p._id === attendance.user._id);
+              const status = attendance.status;
+
               return (
-                <div key={participant._id} className="px-6 py-4 flex justify-between items-center">
-                  <div>
-                    <p className="font-medium">{participant.firstName} {participant.lastName}</p>
-                    <p className="text-sm text-gray-500">{participant.email}</p>
+                <div key={attendance.user._id} className="px-6 py-4 flex items-center justify-between">
+                  <div className="flex items-center">
+                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                      <span className="text-blue-600 font-semibold">
+                        {participant?.firstName[0]}{participant?.lastName[0]}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        {participant?.firstName} {participant?.lastName}
+                      </p>
+                      <p className="text-sm text-gray-500">{participant?.email}</p>
+                    </div>
                   </div>
-                  {meeting.status === 'planned' && isAdmin ? (
+                  {isAdmin && meeting.status === 'planned' ? (
                     <div className="flex gap-2">
                       <button
-                        onClick={() => handleAttendance(participant._id, 'attended')}
+                        onClick={() => handleAttendance(attendance.user._id, 'attended')}
                         className={`px-3 py-1 rounded text-sm ${
                           status === 'attended' ? 'bg-green-600 text-white' : 'bg-gray-200'
                         }`}
@@ -559,7 +600,7 @@ const MeetingDetail = () => {
                         ✓ Katıldı
                       </button>
                       <button
-                        onClick={() => handleAttendance(participant._id, 'not_attended')}
+                        onClick={() => handleAttendance(attendance.user._id, 'not_attended')}
                         className={`px-3 py-1 rounded text-sm ${
                           status === 'not_attended' ? 'bg-red-600 text-white' : 'bg-gray-200'
                         }`}
@@ -584,7 +625,7 @@ const MeetingDetail = () => {
         </div>
       )}
 
-      {/* Notlar */}
+      {/* Notlar Section */}
       {activeSection === 'notes' && (
         <div className="space-y-6">
           {meeting.status === 'planned' && isAdmin && (
