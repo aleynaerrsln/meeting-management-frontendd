@@ -1,35 +1,51 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import axiosInstance from '../api/axios';
 
-const Meetings = () => {
-  const navigate = useNavigate();
-  const [meetings, setMeetings] = useState([]);
+const WorkReports = () => {
+  const { user, isAdmin } = useAuth();
+  const [reports, setReports] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [editingMeeting, setEditingMeeting] = useState(null);
+  const [editingReport, setEditingReport] = useState(null);
   const [exporting, setExporting] = useState(false);
+  const [filters, setFilters] = useState({
+    userId: '',
+    week: '',
+    year: new Date().getFullYear(),
+    month: '',
+    status: ''
+  });
   const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    date: '',
-    time: '',
-    location: '',
-    participants: [],
+    date: new Date().toISOString().split('T')[0],
+    workDescription: '',
+    hoursWorked: '',
+    project: '',
+    notes: ''
   });
 
   useEffect(() => {
-    fetchMeetings();
-    fetchUsers();
-  }, []);
+    fetchReports();
+    if (isAdmin) {
+      fetchUsers();
+    }
+  }, [filters]);
 
-  const fetchMeetings = async () => {
+  const fetchReports = async () => {
     try {
-      const response = await axiosInstance.get('/meetings');
-      setMeetings(response.data.data || []);
+      setLoading(true);
+      const params = {};
+      if (filters.userId) params.userId = filters.userId;
+      if (filters.week) params.week = filters.week;
+      if (filters.year) params.year = filters.year;
+      if (filters.month) params.month = filters.month;
+      if (filters.status) params.status = filters.status;
+
+      const response = await axiosInstance.get('/work-reports', { params });
+      setReports(response.data.data || []);
     } catch (error) {
-      console.error('Toplantılar yüklenemedi:', error);
+      console.error('Raporlar yüklenemedi:', error);
     } finally {
       setLoading(false);
     }
@@ -47,140 +63,117 @@ const Meetings = () => {
   const handleExportExcel = async () => {
     try {
       setExporting(true);
-      const response = await axiosInstance.get('/export/meetings', {
+      const params = new URLSearchParams();
+      if (filters.userId) params.append('userId', filters.userId);
+      if (filters.week) params.append('week', filters.week);
+      if (filters.year) params.append('year', filters.year);
+      if (filters.month) params.append('month', filters.month);
+      if (filters.status) params.append('status', filters.status);
+
+      const response = await axiosInstance.get(`/export/work-reports?${params.toString()}`, {
         responseType: 'blob',
       });
 
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `tum-toplantilar-${new Date().getTime()}.xlsx`);
+      link.setAttribute('download', `calisma-raporlari-${new Date().getTime()}.xlsx`);
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
 
-      alert('Tüm toplantılar Excel dosyası olarak indirildi!');
+      alert('✅ Çalışma raporları Excel olarak indirildi!');
     } catch (error) {
       console.error('Excel export hatası:', error);
-      alert('Excel dosyası indirilemedi');
+      alert('❌ Excel dosyası indirilemedi');
     } finally {
       setExporting(false);
     }
-  };
-
-  const handleExportSingleMeeting = async (meetingId) => {
-    try {
-      setExporting(true);
-      const response = await axiosInstance.get(`/export/attendance/${meetingId}`, {
-        responseType: 'blob',
-      });
-
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `toplanti-yoklama-${meetingId}-${new Date().getTime()}.xlsx`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      alert('Toplantı yoklaması başarıyla indirildi!');
-    } catch (error) {
-      console.error('Yoklama export hatası:', error);
-      alert('Yoklama dosyası indirilemedi');
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
-  };
-
-  const handleParticipantToggle = (userId) => {
-    setFormData((prev) => ({
-      ...prev,
-      participants: prev.participants.includes(userId)
-        ? prev.participants.filter((id) => id !== userId)
-        : [...prev.participants, userId],
-    }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     try {
-      if (editingMeeting) {
-        await axiosInstance.put(`/meetings/${editingMeeting._id}`, formData);
+      if (editingReport) {
+        await axiosInstance.put(`/work-reports/${editingReport._id}`, formData);
+        alert('Rapor güncellendi!');
       } else {
-        await axiosInstance.post('/meetings', formData);
+        await axiosInstance.post('/work-reports', formData);
+        alert('Rapor oluşturuldu!');
       }
-
-      fetchMeetings();
-      handleCloseModal();
-      alert(editingMeeting ? 'Toplantı güncellendi!' : 'Toplantı oluşturuldu!');
+      setShowModal(false);
+      fetchReports();
+      resetForm();
     } catch (error) {
-      console.error('İşlem başarısız:', error);
+      console.error('Hata:', error);
       alert(error.response?.data?.message || 'Bir hata oluştu');
     }
   };
 
-  const handleEdit = (meeting) => {
-    setEditingMeeting(meeting);
+  const handleEdit = (report) => {
+    setEditingReport(report);
     setFormData({
-      title: meeting.title,
-      description: meeting.description || '',
-      date: meeting.date.split('T')[0],
-      time: meeting.time,
-      location: meeting.location,
-      participants: meeting.participants.map((p) => p._id),
+      date: report.date.split('T')[0],
+      workDescription: report.workDescription,
+      hoursWorked: report.hoursWorked,
+      project: report.project || '',
+      notes: report.notes || ''
     });
     setShowModal(true);
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Bu toplantıyı silmek istediğinizden emin misiniz?')) {
-      return;
-    }
-
+    if (!window.confirm('Bu raporu silmek istediğinizden emin misiniz?')) return;
     try {
-      await axiosInstance.delete(`/meetings/${id}`);
-      fetchMeetings();
-      alert('Toplantı silindi!');
+      await axiosInstance.delete(`/work-reports/${id}`);
+      alert('Rapor silindi!');
+      fetchReports();
     } catch (error) {
-      console.error('Silme işlemi başarısız:', error);
-      alert(error.response?.data?.message || 'Toplantı silinemedi');
+      console.error('Silme hatası:', error);
+      alert('Rapor silinemedi');
     }
+  };
+
+  const handleStatusChange = async (reportId, newStatus) => {
+    try {
+      await axiosInstance.put(`/work-reports/${reportId}`, { status: newStatus });
+      alert('Durum güncellendi!');
+      fetchReports();
+    } catch (error) {
+      console.error('Durum güncelleme hatası:', error);
+      alert('Durum güncellenemedi');
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      date: new Date().toISOString().split('T')[0],
+      workDescription: '',
+      hoursWorked: '',
+      project: '',
+      notes: ''
+    });
+    setEditingReport(null);
   };
 
   const handleCloseModal = () => {
     setShowModal(false);
-    setEditingMeeting(null);
-    setFormData({
-      title: '',
-      description: '',
-      date: '',
-      time: '',
-      location: '',
-      participants: [],
-    });
+    resetForm();
   };
 
   const getStatusBadge = (status) => {
     const badges = {
-      planned: 'bg-blue-100 text-blue-800',
-      completed: 'bg-green-100 text-green-800',
-      cancelled: 'bg-red-100 text-red-800',
+      draft: 'bg-gray-100 text-gray-800',
+      submitted: 'bg-blue-100 text-blue-800',
+      approved: 'bg-green-100 text-green-800',
+      rejected: 'bg-red-100 text-red-800'
     };
     const texts = {
-      planned: 'Planlandı',
-      completed: 'Tamamlandı',
-      cancelled: 'İptal Edildi',
+      draft: 'Taslak',
+      submitted: 'Gönderildi',
+      approved: 'Onaylandı',
+      rejected: 'Reddedildi'
     };
     return (
       <span className={`px-3 py-1 rounded-full text-xs font-medium ${badges[status]}`}>
@@ -188,6 +181,8 @@ const Meetings = () => {
       </span>
     );
   };
+
+  const totalHours = reports.reduce((sum, r) => sum + r.hoursWorked, 0);
 
   if (loading) {
     return (
@@ -202,14 +197,16 @@ const Meetings = () => {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Toplantılar</h1>
-          <p className="text-gray-600 mt-1">Tüm toplantıları yönetin</p>
+          <h1 className="text-3xl font-bold text-gray-900">Çalışma Raporları</h1>
+          <p className="text-gray-600 mt-1">
+            {isAdmin ? 'Tüm çalışma raporlarını yönetin' : 'Çalışma raporlarınızı görüntüleyin'}
+          </p>
         </div>
         <div className="flex gap-3">
           <button
             onClick={handleExportExcel}
-            disabled={exporting || meetings.length === 0}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            disabled={exporting || reports.length === 0}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium disabled:opacity-50 flex items-center gap-2"
           >
             {exporting ? (
               <>
@@ -222,7 +219,7 @@ const Meetings = () => {
             ) : (
               <>
                 <span>📥</span>
-                <span>Tümünü İndir (Excel)</span>
+                <span>Excel İndir</span>
               </>
             )}
           </button>
@@ -230,97 +227,230 @@ const Meetings = () => {
             onClick={() => setShowModal(true)}
             className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium"
           >
-            + Yeni Toplantı
+            + Yeni Rapor
           </button>
         </div>
       </div>
 
-      {/* Meetings List */}
+      {/* Filters */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          {isAdmin && (
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Kullanıcı</label>
+              <select
+                value={filters.userId}
+                onChange={(e) => setFilters({ ...filters, userId: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">Tüm Kullanıcılar</option>
+                {users.map(u => (
+                  <option key={u._id} value={u._id}>{u.firstName} {u.lastName}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Hafta</label>
+            <input
+              type="number"
+              placeholder="Hafta No"
+              value={filters.week}
+              onChange={(e) => setFilters({ ...filters, week: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+              min="1"
+              max="53"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Yıl</label>
+            <input
+              type="number"
+              value={filters.year}
+              onChange={(e) => setFilters({ ...filters, year: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Ay</label>
+            <select
+              value={filters.month}
+              onChange={(e) => setFilters({ ...filters, month: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">Tüm Aylar</option>
+              {Array.from({ length: 12 }, (_, i) => (
+                <option key={i + 1} value={i + 1}>{i + 1}. Ay</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Durum</label>
+            <select
+              value={filters.status}
+              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">Tümü</option>
+              <option value="draft">Taslak</option>
+              <option value="submitted">Gönderildi</option>
+              <option value="approved">Onaylandı</option>
+              <option value="rejected">Reddedildi</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <p className="text-sm text-gray-600">Toplam Rapor</p>
+          <p className="text-2xl font-bold text-gray-900">{reports.length}</p>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <p className="text-sm text-gray-600">Toplam Saat</p>
+          <p className="text-2xl font-bold text-indigo-600">{totalHours}</p>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <p className="text-sm text-gray-600">Ortalama Saat</p>
+          <p className="text-2xl font-bold text-green-600">
+            {reports.length > 0 ? (totalHours / reports.length).toFixed(1) : 0}
+          </p>
+        </div>
+      </div>
+
+      {/* Reports List */}
       <div className="space-y-4">
-        {meetings.map((meeting) => (
+        {reports.map((report) => (
           <div
-            key={meeting._id}
-            className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition"
+            key={report._id}
+            className={`bg-white rounded-xl shadow-sm border p-6 hover:shadow-md transition ${
+              report.meeting ? 'border-blue-300 bg-blue-50' : 'border-gray-200'
+            }`}
           >
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
-                  <h3 className="text-xl font-semibold text-gray-900">{meeting.title}</h3>
-                  {getStatusBadge(meeting.status)}
+                  {report.meeting && (
+                    <span className="px-3 py-1 bg-blue-600 text-white rounded-full text-xs font-medium">
+                      📅 Toplantı Raporu
+                    </span>
+                  )}
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    {report.project || 'Genel Çalışma'}
+                  </h3>
+                  {getStatusBadge(report.status)}
+                  {report.isPrivate && (
+                    <span className="px-2 py-1 bg-gray-600 text-white rounded text-xs">
+                      🔒 Gizli
+                    </span>
+                  )}
                 </div>
-                {meeting.description && (
-                  <p className="text-gray-600 mb-4">{meeting.description}</p>
-                )}
+                <p className="text-gray-600 mb-4">{report.workDescription}</p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Tarih</p>
                     <p className="text-sm font-medium text-gray-900">
-                      {new Date(meeting.date).toLocaleDateString('tr-TR')}
+                      {new Date(report.date).toLocaleDateString('tr-TR')}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Saat</p>
-                    <p className="text-sm font-medium text-gray-900">{meeting.time}</p>
+                    <p className="text-sm font-medium text-gray-900">{report.hoursWorked} saat</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 mb-1">Yer</p>
-                    <p className="text-sm font-medium text-gray-900">{meeting.location}</p>
+                    <p className="text-xs text-gray-500 mb-1">Hafta</p>
+                    <p className="text-sm font-medium text-gray-900">{report.week}. hafta</p>
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Katılımcılar</p>
-                    <p className="text-sm font-medium text-gray-900">
-                      {meeting.participants.length} kişi
+                  {isAdmin && (
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Kullanıcı</p>
+                      <p className="text-sm font-medium text-gray-900">
+                        {report.user.firstName} {report.user.lastName}
+                      </p>
+                    </div>
+                  )}
+                </div>
+                
+                {/* YENİ: Toplantı Bilgisi */}
+                {report.meeting && (
+                  <div className="mt-3 p-3 bg-blue-100 rounded-lg border border-blue-200">
+                    <p className="text-xs font-medium text-blue-900 mb-1">📅 Toplantı:</p>
+                    <p className="text-sm text-blue-800 font-medium">{report.meeting.title}</p>
+                  </div>
+                )}
+
+                {/* YENİ: Paylaşım Bilgisi */}
+                {report.sharedWith && report.sharedWith.length > 0 && (
+                  <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                    <p className="text-xs font-medium text-green-900 mb-1">👥 Paylaşıldı:</p>
+                    <p className="text-sm text-green-800">
+                      {report.sharedWith.map(u => `${u.firstName} ${u.lastName}`).join(', ')}
                     </p>
                   </div>
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {meeting.participants.map((participant) => (
-                    <span
-                      key={participant._id}
-                      className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs"
-                    >
-                      {participant.firstName} {participant.lastName}
-                    </span>
-                  ))}
-                </div>
+                )}
+
+                {report.notes && (
+                  <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                    <p className="text-xs font-medium text-gray-700 mb-1">Notlar:</p>
+                    <p className="text-sm text-gray-600">{report.notes}</p>
+                  </div>
+                )}
               </div>
+              
               <div className="flex flex-col gap-2 ml-4">
-                <div className="flex gap-2">
+                {/* Toplantı raporları düzenlenemez/silinemez */}
+                {!report.meeting && (!isAdmin || report.user._id === user.id) && (
+                  <>
+                    <button
+                      onClick={() => handleEdit(report)}
+                      className="px-3 py-1 text-sm text-indigo-600 hover:bg-indigo-50 rounded"
+                    >
+                      Düzenle
+                    </button>
+                    <button
+                      onClick={() => handleDelete(report._id)}
+                      className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded"
+                    >
+                      Sil
+                    </button>
+                  </>
+                )}
+                
+                {/* Toplantı raporuysa toplantıya git */}
+                {report.meeting && (
                   <button
-                    onClick={() => navigate(`/meetings/${meeting._id}`)}
-                    className="px-3 py-1 text-sm text-green-600 hover:bg-green-50 rounded"
+                    onClick={() => window.location.href = `/meetings/${report.meeting._id}`}
+                    className="px-3 py-1 text-xs bg-blue-600 text-white hover:bg-blue-700 rounded"
                   >
-                    Detay
+                    📅 Toplantıya Git
                   </button>
-                  <button
-                    onClick={() => handleEdit(meeting)}
-                    className="px-3 py-1 text-sm text-indigo-600 hover:bg-indigo-50 rounded"
-                  >
-                    Düzenle
-                  </button>
-                  <button
-                    onClick={() => handleDelete(meeting._id)}
-                    className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded"
-                  >
-                    Sil
-                  </button>
-                </div>
-                <button
-                  onClick={() => handleExportSingleMeeting(meeting._id)}
-                  disabled={exporting}
-                  className="px-3 py-1 text-sm bg-green-600 text-white hover:bg-green-700 rounded disabled:opacity-50 flex items-center justify-center gap-1"
-                >
-                  <span>📥</span>
-                  <span>Yoklama İndir</span>
-                </button>
+                )}
+
+                {isAdmin && report.status === 'submitted' && (
+                  <div className="flex flex-col gap-1">
+                    <button
+                      onClick={() => handleStatusChange(report._id, 'approved')}
+                      className="px-3 py-1 text-xs bg-green-600 text-white hover:bg-green-700 rounded"
+                    >
+                      ✓ Onayla
+                    </button>
+                    <button
+                      onClick={() => handleStatusChange(report._id, 'rejected')}
+                      className="px-3 py-1 text-xs bg-red-600 text-white hover:bg-red-700 rounded"
+                    >
+                      ✗ Reddet
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         ))}
 
-        {meetings.length === 0 && (
+        {reports.length === 0 && (
           <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
-            <p className="text-gray-500">Henüz toplantı oluşturulmamış</p>
+            <p className="text-gray-500">Henüz rapor eklenmemiş</p>
           </div>
         )}
       </div>
@@ -331,48 +461,20 @@ const Meetings = () => {
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-semibold text-gray-900">
-                {editingMeeting ? 'Toplantı Düzenle' : 'Yeni Toplantı Oluştur'}
+                {editingReport ? 'Raporu Düzenle' : 'Yeni Rapor Oluştur'}
               </h3>
             </div>
-
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Toplantı Başlığı
-                </label>
-                <input
-                  type="text"
-                  name="title"
-                  value={formData.title}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Açıklama
-                </label>
-                <textarea
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+            
+            <form onSubmit={handleSubmit} className="p-6">
+              <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Tarih
                   </label>
                   <input
                     type="date"
-                    name="date"
                     value={formData.date}
-                    onChange={handleInputChange}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                     required
                   />
@@ -380,70 +482,75 @@ const Meetings = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Saat
+                    Proje (Opsiyonel)
                   </label>
                   <input
-                    type="time"
-                    name="time"
-                    value={formData.time}
-                    onChange={handleInputChange}
+                    type="text"
+                    value={formData.project}
+                    onChange={(e) => setFormData({ ...formData, project: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Proje adı"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Çalışma Açıklaması
+                  </label>
+                  <textarea
+                    value={formData.workDescription}
+                    onChange={(e) => setFormData({ ...formData, workDescription: e.target.value })}
+                    rows="4"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Bugün yaptığınız çalışmaları detaylı açıklayın..."
                     required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Çalışma Saati
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.hoursWorked}
+                    onChange={(e) => setFormData({ ...formData, hoursWorked: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Saat"
+                    min="0"
+                    max="24"
+                    step="0.5"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Notlar (Opsiyonel)
+                  </label>
+                  <textarea
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    rows="3"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Ekstra notlar..."
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Yer
-                </label>
-                <input
-                  type="text"
-                  name="location"
-                  value={formData.location}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Katılımcılar
-                </label>
-                <div className="border border-gray-300 rounded-lg p-4 max-h-48 overflow-y-auto">
-                  {users.map((user) => (
-                    <label
-                      key={user._id}
-                      className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={formData.participants.includes(user._id)}
-                        onChange={() => handleParticipantToggle(user._id)}
-                        className="w-4 h-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                      />
-                      <span className="text-sm text-gray-900">
-                        {user.firstName} {user.lastName} ({user.email})
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-4">
+              <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
                 >
                   İptal
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
                 >
-                  {editingMeeting ? 'Güncelle' : 'Oluştur'}
+                  {editingReport ? 'Güncelle' : 'Oluştur'}
                 </button>
               </div>
             </form>
@@ -454,4 +561,4 @@ const Meetings = () => {
   );
 };
 
-export default Meetings;
+export default WorkReports;

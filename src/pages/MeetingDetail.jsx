@@ -1,38 +1,55 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import axiosInstance from '../api/axios';
 
 const MeetingDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const [meeting, setMeeting] = useState(null);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showNotes, setShowNotes] = useState(false);
   const [showAttendance, setShowAttendance] = useState(false);
-  const [newNote, setNewNote] = useState({ title: '', content: '' });
-  const [isAddingNote, setIsAddingNote] = useState(false);
   const [activeSection, setActiveSection] = useState('info');
   const [notification, setNotification] = useState(null);
+  const [isAddingNote, setIsAddingNote] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false); // YENİ
+  const [reportFormData, setReportFormData] = useState({ // YENİ
+    assignToUser: '',
+    isPrivate: false,
+    sharedWith: []
+  });
+  const [noteFormData, setNoteFormData] = useState({
+    title: '',
+    content: ''
+  });
 
   useEffect(() => {
     fetchMeetingDetail();
+    if (isAdmin) {
+      fetchUsers();
+    }
   }, [id]);
 
   const fetchMeetingDetail = async () => {
     try {
       const response = await axiosInstance.get(`/meetings/${id}`);
       setMeeting(response.data);
-      
-      if (response.data.status === 'completed') {
-        setShowNotes(true);
-        setShowAttendance(true);
-      }
     } catch (error) {
-      console.error('Toplantı detayı yüklenemedi:', error);
-      showNotification('Toplantı bulunamadı', 'error');
-      navigate('/meetings');
+      console.error('Toplantı yüklenemedi:', error);
+      showNotification('Toplantı yüklenemedi', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const response = await axiosInstance.get('/users');
+      setUsers(response.data.data || []);
+    } catch (error) {
+      console.error('Kullanıcılar yüklenemedi:', error);
     }
   };
 
@@ -41,39 +58,27 @@ const MeetingDetail = () => {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  const handleStartMeeting = () => {
-    setShowAttendance(true);
-    setShowNotes(true);
-    setActiveSection('attendance');
-    showNotification('Toplantı başladı! Artık yoklama alabilir ve not ekleyebilirsiniz.', 'success');
-  };
-
   const handleAttendance = async (userId, status) => {
     try {
-      await axiosInstance.put(`/meetings/${id}/attendance`, {
-        userId,
-        status,
-      });
+      await axiosInstance.put(`/meetings/${id}/attendance`, { userId, status });
       fetchMeetingDetail();
+      showNotification('Yoklama güncellendi!', 'success');
     } catch (error) {
-      console.error('Yoklama işaretleme hatası:', error);
-      showNotification(error.response?.data?.message || 'Yoklama işaretlenemedi', 'error');
+      console.error('Yoklama hatası:', error);
+      showNotification(error.response?.data?.message || 'Yoklama güncellenemedi', 'error');
     }
   };
 
   const handleAddNote = async (e) => {
     e.preventDefault();
-    if (!newNote.title.trim() || !newNote.content.trim()) {
-      showNotification('Lütfen başlık ve içerik girin', 'error');
-      return;
-    }
+    if (!noteFormData.title || !noteFormData.content) return;
 
     try {
       setIsAddingNote(true);
-      await axiosInstance.post(`/meetings/${id}/notes`, newNote);
-      setNewNote({ title: '', content: '' });
+      await axiosInstance.post(`/meetings/${id}/notes`, noteFormData);
+      setNoteFormData({ title: '', content: '' });
       fetchMeetingDetail();
-      showNotification('Not başarıyla eklendi!', 'success');
+      showNotification('Not eklendi!', 'success');
     } catch (error) {
       console.error('Not ekleme hatası:', error);
       showNotification(error.response?.data?.message || 'Not eklenemedi', 'error');
@@ -95,29 +100,41 @@ const MeetingDetail = () => {
     }
   };
 
+  // YENİ: Toplantıyı Tamamla (Sadece Status Değiştir)
   const handleCompleteMeeting = async () => {
     const attendedCount = meeting.attendance.filter(a => a.status === 'attended').length;
-    const notAttendedCount = meeting.attendance.filter(a => a.status === 'not_attended').length;
-    const pendingCount = meeting.attendance.filter(a => a.status === 'pending').length;
     const notesCount = meeting.notes?.length || 0;
 
-    const confirmMessage = `Toplantıyı tamamlamak istediğinizden emin misiniz?\n\nYoklama Özeti:\n✅ Katılan: ${attendedCount}\n❌ Katılmayan: ${notAttendedCount}\n⏳ Bekleyen: ${pendingCount}\n\n📝 Toplam Not: ${notesCount}`;
+    const confirmMessage = `Toplantıyı tamamlamak istediğinizden emin misiniz?\n\n✅ Katılan: ${attendedCount}/${meeting.participants.length}\n📝 Not Sayısı: ${notesCount}\n\nTamamlandıktan sonra "Genel Bilgiler" sekmesinde rapor görünecek.`;
 
     if (!window.confirm(confirmMessage)) return;
 
     try {
-      await axiosInstance.put(`/meetings/${id}`, {
-        status: 'completed',
-      });
-      
-      showNotification(`Toplantı başarıyla tamamlandı! Katılım: ${attendedCount}/${meeting.participants.length} | Not Sayısı: ${notesCount}`, 'success');
-      
-      // Genel Bilgiler sekmesine geç
-      setActiveSection('info');
+      await axiosInstance.put(`/meetings/${id}`, { status: 'completed' });
       fetchMeetingDetail();
+      setActiveSection('info'); // Genel bilgiler sekmesine geç
+      showNotification('✅ Toplantı tamamlandı! Rapor "Genel Bilgiler" sekmesinde görüntülenebilir.', 'success');
     } catch (error) {
       console.error('Toplantı tamamlama hatası:', error);
       showNotification(error.response?.data?.message || 'Toplantı tamamlanamadı', 'error');
+    }
+  };
+
+  // YENİ: Rapor Oluştur (Modal'dan)
+  const handleCreateReport = async () => {
+    try {
+      await axiosInstance.post(`/meetings/${id}/create-report`, reportFormData);
+
+      setShowReportModal(false);
+      showNotification('✅ Rapor çalışma raporlarına gönderildi!', 'success');
+      
+      // 2 saniye sonra çalışma raporları sayfasına yönlendir
+      setTimeout(() => {
+        navigate('/work-reports');
+      }, 2000);
+    } catch (error) {
+      console.error('Rapor oluşturma hatası:', error);
+      showNotification(error.response?.data?.message || 'Rapor oluşturulamadı', 'error');
     }
   };
 
@@ -125,20 +142,13 @@ const MeetingDetail = () => {
     if (!window.confirm('Toplantıyı iptal etmek istediğinizden emin misiniz?')) return;
 
     try {
-      await axiosInstance.put(`/meetings/${id}`, {
-        status: 'cancelled',
-      });
+      await axiosInstance.put(`/meetings/${id}`, { status: 'cancelled' });
       fetchMeetingDetail();
       showNotification('Toplantı iptal edildi', 'warning');
     } catch (error) {
       console.error('Toplantı iptal hatası:', error);
       showNotification(error.response?.data?.message || 'Toplantı iptal edilemedi', 'error');
     }
-  };
-
-  const getAttendanceStatus = (userId) => {
-    const attendance = meeting?.attendance?.find((a) => a.user._id === userId);
-    return attendance?.status || 'pending';
   };
 
   const getStatusColor = (status) => {
@@ -157,14 +167,6 @@ const MeetingDetail = () => {
       cancelled: '❌ İptal Edildi',
     };
     return texts[status] || status;
-  };
-
-  const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('tr-TR', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric'
-    });
   };
 
   if (loading) {
@@ -189,44 +191,129 @@ const MeetingDetail = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
-      {/* Notification Modal */}
+      {/* Notification */}
       {notification && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
-          <div className={`bg-white rounded-lg shadow-2xl p-6 max-w-md w-full mx-4 transform transition-all ${
-            notification.type === 'success' ? 'border-l-4 border-green-500' :
-            notification.type === 'error' ? 'border-l-4 border-red-500' :
-            'border-l-4 border-yellow-500'
+        <div className="fixed top-4 right-4 z-50 animate-fade-in">
+          <div className={`rounded-lg shadow-lg p-4 ${
+            notification.type === 'success' ? 'bg-green-50 border border-green-200' :
+            notification.type === 'error' ? 'bg-red-50 border border-red-200' :
+            'bg-yellow-50 border border-yellow-200'
           }`}>
-            <div className="flex items-start">
-              <div className="flex-shrink-0">
-                {notification.type === 'success' && (
-                  <svg className="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                )}
-                {notification.type === 'error' && (
-                  <svg className="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                )}
-                {notification.type === 'warning' && (
-                  <svg className="h-6 w-6 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                )}
+            <p className={`font-medium ${
+              notification.type === 'success' ? 'text-green-800' :
+              notification.type === 'error' ? 'text-red-800' :
+              'text-yellow-800'
+            }`}>
+              {notification.message}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* YENİ: Rapor Oluşturma Modalı */}
+      {showReportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">
+                📤 Raporu Çalışma Raporlarına Gönder
+              </h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Bu rapor "Çalışma Raporları" sayfasında görünecek
+              </p>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Raporu Hangi Kullanıcıya Ata?
+                </label>
+                <select
+                  value={reportFormData.assignToUser}
+                  onChange={(e) => setReportFormData({ ...reportFormData, assignToUser: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Kendime Ata</option>
+                  {users.map(user => (
+                    <option key={user._id} value={user._id}>
+                      {user.firstName} {user.lastName} ({user.email})
+                    </option>
+                  ))}
+                </select>
               </div>
-              <div className="ml-3 flex-1">
-                <p className="text-sm font-medium text-gray-900">
-                  {notification.message}
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={reportFormData.isPrivate}
+                  onChange={(e) => setReportFormData({ ...reportFormData, isPrivate: e.target.checked })}
+                  className="rounded"
+                />
+                <label className="text-sm text-gray-700">
+                  🔒 Gizli (Sadece ben görebilirim)
+                </label>
+              </div>
+
+              {!reportFormData.isPrivate && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Raporu Kimlerle Paylaş? (Opsiyonel)
+                  </label>
+                  <div className="border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto">
+                    {users.map(user => (
+                      <label key={user._id} className="flex items-center space-x-2 py-2 hover:bg-gray-50 px-2 rounded cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={reportFormData.sharedWith.includes(user._id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setReportFormData({
+                                ...reportFormData,
+                                sharedWith: [...reportFormData.sharedWith, user._id]
+                              });
+                            } else {
+                              setReportFormData({
+                                ...reportFormData,
+                                sharedWith: reportFormData.sharedWith.filter(id => id !== user._id)
+                              });
+                            }
+                          }}
+                          className="rounded"
+                        />
+                        <span className="text-sm text-gray-700">
+                          {user.firstName} {user.lastName}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800">
+                  ℹ️ Rapor Özeti:
                 </p>
+                <ul className="text-sm text-blue-700 mt-2 space-y-1">
+                  <li>• Toplantı notları rapor içeriği olacak</li>
+                  <li>• Varsayılan 2 saat çalışma süresi atanacak</li>
+                  <li>• Durum otomatik "Onaylandı" olacak</li>
+                  <li>• Çalışma Raporları sayfasında görünecek</li>
+                </ul>
               </div>
+            </div>
+
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200">
               <button
-                onClick={() => setNotification(null)}
-                className="ml-4 text-gray-400 hover:text-gray-600"
+                onClick={() => setShowReportModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
               >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                İptal
+              </button>
+              <button
+                onClick={handleCreateReport}
+                className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
+              >
+                ✅ Rapor Oluştur ve Tamamla
               </button>
             </div>
           </div>
@@ -237,7 +324,7 @@ const MeetingDetail = () => {
       <div className="mb-8">
         <button
           onClick={() => navigate('/meetings')}
-          className="mb-4 text-blue-600 hover:text-blue-800 flex items-center gap-2 transition"
+          className="mb-4 text-blue-600 hover:text-blue-800 flex items-center gap-2"
         >
           ← Geri Dön
         </button>
@@ -245,322 +332,249 @@ const MeetingDetail = () => {
           <div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">{meeting.title}</h1>
             {meeting.description && (
-              <p className="text-gray-600 max-w-2xl">{meeting.description}</p>
+              <p className="text-gray-600">{meeting.description}</p>
             )}
           </div>
-          <span className={`px-4 py-2 rounded-full text-sm font-semibold ${getStatusColor(meeting.status)}`}>
-            {getStatusText(meeting.status)}
-          </span>
-        </div>
-      </div>
-
-      {/* Toplantı Bilgileri Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <p className="text-sm text-gray-500 mb-1">📅 Tarih</p>
-          <p className="text-lg font-semibold text-gray-900">{formatDate(meeting.date)}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <p className="text-sm text-gray-500 mb-1">🕐 Saat</p>
-          <p className="text-lg font-semibold text-gray-900">{meeting.time}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <p className="text-sm text-gray-500 mb-1">📍 Yer</p>
-          <p className="text-lg font-semibold text-gray-900">{meeting.location}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <p className="text-sm text-gray-500 mb-1">👥 Katılımcı</p>
-          <p className="text-lg font-semibold text-gray-900">
-            {meeting.participants?.length || 0} kişi
-          </p>
-        </div>
-      </div>
-
-      {/* Toplantı Başlat/Bitir Butonları */}
-      {meeting.status === 'planned' && (
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-sm border border-blue-200 p-6 mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Toplantı İşlemleri</h2>
-          <div className="flex gap-3 flex-wrap">
-            {!showAttendance && !showNotes && (
-              <button
-                onClick={handleStartMeeting}
-                className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold shadow-md"
-              >
-                ▶️ Toplantıyı Başlat
-              </button>
-            )}
-            {(showAttendance || showNotes) && (
+          <div className="flex gap-2">
+            <span className={`px-4 py-2 rounded-full text-sm font-semibold ${getStatusColor(meeting.status)}`}>
+              {getStatusText(meeting.status)}
+            </span>
+            {isAdmin && meeting.status === 'planned' && (
               <>
                 <button
                   onClick={handleCompleteMeeting}
-                  className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold shadow-md"
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
                 >
-                  ✓ Toplantıyı Tamamla
+                  ✅ Toplantıyı Tamamla
                 </button>
                 <button
                   onClick={handleCancelMeeting}
-                  className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-semibold shadow-md"
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium"
                 >
-                  ✕ İptal Et
+                  ❌ İptal Et
                 </button>
               </>
             )}
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Tab Navigation */}
-      {(showAttendance || showNotes || meeting.status === 'completed') && (
-        <div className="mb-6">
-          <div className="border-b border-gray-200">
-            <nav className="flex space-x-8">
-              <button
-                onClick={() => setActiveSection('info')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition ${
-                  activeSection === 'info'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                📋 Genel Bilgiler
-              </button>
-              {(showAttendance || meeting.status === 'completed') && (
-                <button
-                  onClick={() => setActiveSection('attendance')}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm transition ${
-                    activeSection === 'attendance'
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  ✅ Yoklama ({attendedCount}/{meeting.participants?.length})
-                </button>
-              )}
-              {(showNotes || meeting.status === 'completed') && (
-                <button
-                  onClick={() => setActiveSection('notes')}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm transition ${
-                    activeSection === 'notes'
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  📝 Notlar ({meeting.notes?.length || 0})
-                </button>
-              )}
-            </nav>
-          </div>
-        </div>
-      )}
+      {/* Tabs */}
+      <div className="border-b border-gray-200 mb-6">
+        <nav className="flex space-x-8">
+          <button
+            onClick={() => setActiveSection('info')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeSection === 'info'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            📋 Genel Bilgiler
+          </button>
+          <button
+            onClick={() => setActiveSection('attendance')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeSection === 'attendance'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            ✓ Yoklama
+          </button>
+          <button
+            onClick={() => setActiveSection('notes')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeSection === 'notes'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            📝 Notlar
+          </button>
+        </nav>
+      </div>
 
-      {/* Content Sections */}
+      {/* Genel Bilgiler */}
       {activeSection === 'info' && (
         <div className="space-y-6">
-          {/* Toplantı Tamamlanmışsa Rapor Göster */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white rounded-lg shadow-sm border p-6">
+              <h3 className="text-lg font-semibold mb-4">Toplantı Detayları</h3>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm text-gray-500">Tarih</p>
+                  <p className="font-medium">{new Date(meeting.date).toLocaleDateString('tr-TR')}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Saat</p>
+                  <p className="font-medium">{meeting.time}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Yer</p>
+                  <p className="font-medium">{meeting.location}</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-lg shadow-sm border p-6">
+              <h3 className="text-lg font-semibold mb-4">İstatistikler</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Toplam Katılımcı:</span>
+                  <span className="font-semibold">{meeting.participants.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Katılan:</span>
+                  <span className="font-semibold text-green-600">{attendedCount}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Katılmayan:</span>
+                  <span className="font-semibold text-red-600">{notAttendedCount}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Bekleyen:</span>
+                  <span className="font-semibold text-gray-600">{pendingCount}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Not Sayısı:</span>
+                  <span className="font-semibold">{meeting.notes?.length || 0}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* YENİ: Toplantı Raporu Özeti */}
           {meeting.status === 'completed' && (
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border-2 border-blue-200 p-6 mb-6">
-              <div className="flex items-center mb-4">
-                <svg className="h-8 w-8 text-blue-600 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <h2 className="text-2xl font-bold text-gray-900">📋 Toplantı Raporu</h2>
+            <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg shadow-lg border-2 border-green-300 p-6">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    📋 Toplantı Raporu
+                    <span className="px-3 py-1 bg-green-600 text-white rounded-full text-xs">
+                      Tamamlandı
+                    </span>
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Toplantı notlarından oluşturulan özet rapor
+                  </p>
+                </div>
+                {isAdmin && (
+                  <button
+                    onClick={() => setShowReportModal(true)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
+                  >
+                    📤 Çalışma Raporlarına Gönder
+                  </button>
+                )}
               </div>
 
-              {/* Yoklama Özeti */}
-              <div className="bg-white rounded-lg p-5 mb-4 shadow-sm">
-                <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-                  <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm mr-2">Yoklama</span>
-                  Katılım Durumu
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                    <p className="text-sm text-gray-600 mb-1">Toplam Katılımcı</p>
-                    <p className="text-3xl font-bold text-gray-900">{meeting.participants?.length || 0}</p>
-                  </div>
-                  <div className="bg-green-50 rounded-lg p-4 border border-green-200">
-                    <p className="text-sm text-green-700 mb-1">✅ Katılan</p>
-                    <p className="text-3xl font-bold text-green-700">{attendedCount}</p>
-                    <p className="text-xs text-green-600 mt-1">
-                      {((attendedCount / meeting.participants?.length) * 100).toFixed(0)}% katılım
-                    </p>
-                  </div>
-                  <div className="bg-red-50 rounded-lg p-4 border border-red-200">
-                    <p className="text-sm text-red-700 mb-1">❌ Katılmayan</p>
-                    <p className="text-3xl font-bold text-red-700">{notAttendedCount}</p>
-                  </div>
-                  <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
-                    <p className="text-sm text-yellow-700 mb-1">⏳ Bekleyen</p>
-                    <p className="text-3xl font-bold text-yellow-700">{pendingCount}</p>
+              {/* Rapor İçeriği */}
+              <div className="bg-white rounded-lg p-6 shadow-sm">
+                <h4 className="font-semibold text-gray-900 mb-3 text-lg">
+                  {meeting.title} - Toplantı Özeti
+                </h4>
+                
+                <div className="space-y-4 mb-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-500">📅 Tarih:</span>
+                      <span className="ml-2 font-medium">
+                        {new Date(meeting.date).toLocaleDateString('tr-TR')} {meeting.time}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">📍 Yer:</span>
+                      <span className="ml-2 font-medium">{meeting.location}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">👥 Katılımcı:</span>
+                      <span className="ml-2 font-medium">{meeting.participants.length} kişi</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">✅ Katılan:</span>
+                      <span className="ml-2 font-medium text-green-600">{attendedCount} kişi</span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Katılanlar Listesi */}
-                {attendedCount > 0 && (
-                  <div className="mt-4">
-                    <h4 className="font-medium text-gray-900 mb-2">Katılan Kişiler:</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {meeting.attendance
-                        ?.filter(a => a.status === 'attended')
-                        .map(a => (
-                          <span key={a.user._id} className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
-                            ✓ {a.user.firstName} {a.user.lastName}
-                          </span>
-                        ))}
-                    </div>
-                  </div>
-                )}
+                <hr className="my-4" />
 
-                {/* Katılmayanlar Listesi */}
-                {notAttendedCount > 0 && (
-                  <div className="mt-4">
-                    <h4 className="font-medium text-gray-900 mb-2">Katılmayan Kişiler:</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {meeting.attendance
-                        ?.filter(a => a.status === 'not_attended')
-                        .map(a => (
-                          <span key={a.user._id} className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">
-                            ✗ {a.user.firstName} {a.user.lastName}
-                          </span>
-                        ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Notlar Özeti */}
-              <div className="bg-white rounded-lg p-5 shadow-sm">
-                <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-                  <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm mr-2">Notlar</span>
-                  Toplantı Notları ({meeting.notes?.length || 0} Adet)
-                </h3>
+                <h5 className="font-semibold text-gray-900 mb-3">📝 Toplantı Notları:</h5>
                 {meeting.notes && meeting.notes.length > 0 ? (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {meeting.notes.map((note, index) => (
                       <div key={note._id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                         <div className="flex items-start justify-between mb-2">
-                          <h4 className="font-semibold text-gray-900">
+                          <h6 className="font-semibold text-gray-900">
                             {index + 1}. {note.title}
-                          </h4>
+                          </h6>
                           <span className="text-xs text-gray-500">
                             {new Date(note.createdAt).toLocaleString('tr-TR')}
                           </span>
                         </div>
-                        <p className="text-gray-700 whitespace-pre-wrap text-sm">{note.content}</p>
+                        <p className="text-gray-700 whitespace-pre-wrap text-sm leading-relaxed">
+                          {note.content}
+                        </p>
                         <p className="text-xs text-gray-500 mt-2">
-                          📝 {note.createdBy?.firstName} {note.createdBy?.lastName}
+                          ✍️ {note.createdBy?.firstName} {note.createdBy?.lastName}
                         </p>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500 text-center py-4">Toplantı notu eklenmemiş</p>
+                  <p className="text-gray-500 text-center py-4 italic">
+                    Toplantıda not alınmamış
+                  </p>
                 )}
               </div>
             </div>
           )}
-
-          {/* Katılımcılar Listesi */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">Katılımcılar</h2>
-            </div>
-            <div className="divide-y divide-gray-200">
-              {meeting.participants?.map((participant) => (
-                <div
-                  key={participant._id}
-                  className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition"
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="flex-shrink-0 h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                      <span className="text-blue-600 font-semibold text-sm">
-                        {participant.firstName?.[0]}{participant.lastName?.[0]}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        {participant.firstName} {participant.lastName}
-                      </p>
-                      <p className="text-sm text-gray-500">{participant.email}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       )}
 
-      {/* Yoklama Bölümü */}
-      {activeSection === 'attendance' && (showAttendance || meeting.status === 'completed') && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <div className="flex justify-between items-center">
-              <h2 className="text-lg font-semibold text-gray-900">Yoklama Listesi</h2>
-              <div className="flex gap-2 text-sm">
-                <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full">✓ {attendedCount}</span>
-                <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full">✗ {notAttendedCount}</span>
-                <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full">⏳ {pendingCount}</span>
-              </div>
-            </div>
+      {/* Yoklama */}
+      {activeSection === 'attendance' && (
+        <div className="bg-white rounded-lg shadow-sm border">
+          <div className="px-6 py-4 border-b">
+            <h3 className="text-lg font-semibold">Yoklama Listesi</h3>
           </div>
-          <div className="divide-y divide-gray-200">
-            {meeting.participants?.map((participant) => {
-              const status = getAttendanceStatus(participant._id);
+          <div className="divide-y">
+            {meeting.participants?.map(participant => {
+              const attendance = meeting.attendance?.find(a => a.user._id === participant._id);
+              const status = attendance?.status || 'pending';
               return (
-                <div
-                  key={participant._id}
-                  className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition"
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="flex-shrink-0 h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                      <span className="text-blue-600 font-semibold text-sm">
-                        {participant.firstName?.[0]}{participant.lastName?.[0]}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        {participant.firstName} {participant.lastName}
-                      </p>
-                      <p className="text-sm text-gray-500">{participant.email}</p>
-                    </div>
+                <div key={participant._id} className="px-6 py-4 flex justify-between items-center">
+                  <div>
+                    <p className="font-medium">{participant.firstName} {participant.lastName}</p>
+                    <p className="text-sm text-gray-500">{participant.email}</p>
                   </div>
-                  
-                  {meeting.status === 'planned' && (
+                  {meeting.status === 'planned' && isAdmin ? (
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleAttendance(participant._id, 'attended')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                          status === 'attended'
-                            ? 'bg-green-600 text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-green-100'
+                        className={`px-3 py-1 rounded text-sm ${
+                          status === 'attended' ? 'bg-green-600 text-white' : 'bg-gray-200'
                         }`}
                       >
                         ✓ Katıldı
                       </button>
                       <button
                         onClick={() => handleAttendance(participant._id, 'not_attended')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                          status === 'not_attended'
-                            ? 'bg-red-600 text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-red-100'
+                        className={`px-3 py-1 rounded text-sm ${
+                          status === 'not_attended' ? 'bg-red-600 text-white' : 'bg-gray-200'
                         }`}
                       >
                         ✗ Katılmadı
                       </button>
                     </div>
-                  )}
-                  
-                  {meeting.status !== 'planned' && (
-                    <span
-                      className={`px-4 py-2 rounded-lg text-sm font-medium ${
-                        status === 'attended'
-                          ? 'bg-green-100 text-green-800'
-                          : status === 'not_attended'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      {status === 'attended' ? '✓ Katıldı' : status === 'not_attended' ? '✗ Katılmadı' : '⏳ Beklemede'}
+                  ) : (
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      status === 'attended' ? 'bg-green-100 text-green-800' :
+                      status === 'not_attended' ? 'bg-red-100 text-red-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {status === 'attended' ? '✓ Katıldı' :
+                       status === 'not_attended' ? '✗ Katılmadı' : '⏳ Bekliyor'}
                     </span>
                   )}
                 </div>
@@ -570,44 +584,33 @@ const MeetingDetail = () => {
         </div>
       )}
 
-      {/* Notlar Bölümü */}
-      {activeSection === 'notes' && (showNotes || meeting.status === 'completed') && (
+      {/* Notlar */}
+      {activeSection === 'notes' && (
         <div className="space-y-6">
-          {/* Not Ekleme Formu */}
-          {meeting.status === 'planned' && (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Yeni Not Ekle</h3>
+          {meeting.status === 'planned' && isAdmin && (
+            <div className="bg-white rounded-lg shadow-sm border p-6">
+              <h3 className="text-lg font-semibold mb-4">Yeni Not Ekle</h3>
               <form onSubmit={handleAddNote} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Not Başlığı
-                  </label>
-                  <input
-                    type="text"
-                    value={newNote.title}
-                    onChange={(e) => setNewNote({ ...newNote, title: e.target.value })}
-                    placeholder="Örn: Karar Noktaları, Aksiyon Maddeleri..."
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Not İçeriği
-                  </label>
-                  <textarea
-                    value={newNote.content}
-                    onChange={(e) => setNewNote({ ...newNote, content: e.target.value })}
-                    placeholder="Not detaylarını buraya yazın..."
-                    rows={4}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  />
-                </div>
+                <input
+                  type="text"
+                  placeholder="Not Başlığı"
+                  value={noteFormData.title}
+                  onChange={(e) => setNoteFormData({ ...noteFormData, title: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  required
+                />
+                <textarea
+                  placeholder="Not İçeriği"
+                  value={noteFormData.content}
+                  onChange={(e) => setNoteFormData({ ...noteFormData, content: e.target.value })}
+                  rows="4"
+                  className="w-full px-3 py-2 border rounded-lg"
+                  required
+                />
                 <button
                   type="submit"
                   disabled={isAddingNote}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
                   {isAddingNote ? 'Ekleniyor...' : '+ Not Ekle'}
                 </button>
@@ -615,49 +618,35 @@ const MeetingDetail = () => {
             </div>
           )}
 
-          {/* Notlar Listesi */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">
-                Toplantı Notları ({meeting.notes?.length || 0})
-              </h2>
+          <div className="bg-white rounded-lg shadow-sm border">
+            <div className="px-6 py-4 border-b">
+              <h3 className="text-lg font-semibold">Toplantı Notları ({meeting.notes?.length || 0})</h3>
             </div>
-            
             {meeting.notes && meeting.notes.length > 0 ? (
-              <div className="divide-y divide-gray-200">
+              <div className="divide-y">
                 {meeting.notes.map((note, index) => (
-                  <div key={note._id} className="px-6 py-4 hover:bg-gray-50 transition">
+                  <div key={note._id} className="px-6 py-4">
                     <div className="flex justify-between items-start mb-2">
-                      <h3 className="text-base font-semibold text-gray-900">
-                        Not {index + 1}: {note.title}
-                      </h3>
-                      {meeting.status === 'planned' && (
+                      <h4 className="font-semibold">Not {index + 1}: {note.title}</h4>
+                      {meeting.status === 'planned' && isAdmin && (
                         <button
                           onClick={() => handleDeleteNote(note._id)}
-                          className="text-red-600 hover:text-red-800 text-sm font-medium transition"
+                          className="text-red-600 hover:text-red-800 text-sm"
                         >
                           🗑️ Sil
                         </button>
                       )}
                     </div>
-                    <p className="text-gray-700 whitespace-pre-wrap mb-2">{note.content}</p>
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <span>
-                        👤 {note.createdBy?.firstName} {note.createdBy?.lastName}
-                      </span>
-                      <span>
-                        🕐 {new Date(note.createdAt).toLocaleString('tr-TR')}
-                      </span>
-                    </div>
+                    <p className="text-gray-700 whitespace-pre-wrap">{note.content}</p>
+                    <p className="text-xs text-gray-500 mt-2">
+                      {note.createdBy?.firstName} {note.createdBy?.lastName} • {new Date(note.createdAt).toLocaleString('tr-TR')}
+                    </p>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="px-6 py-12 text-center">
-                <p className="text-gray-500">Henüz not eklenmemiş</p>
-                {meeting.status === 'planned' && (
-                  <p className="text-sm text-gray-400 mt-2">Yukarıdaki formdan not ekleyebilirsiniz</p>
-                )}
+              <div className="px-6 py-12 text-center text-gray-500">
+                Henüz not eklenmemiş
               </div>
             )}
           </div>

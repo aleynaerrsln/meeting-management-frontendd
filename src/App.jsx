@@ -7,6 +7,7 @@ import Profile from './pages/Profile';
 import Users from './pages/Users';
 import Meetings from './pages/Meetings';
 import MeetingDetail from './pages/MeetingDetail';
+import WorkReports from './pages/WorkReports'; // 👈 YENİ
 
 const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { isAuthenticated, isAdmin, loading } = useAuth();
@@ -46,7 +47,6 @@ function App() {
             }
           />
 
-          {/* Profile Route - YENİ */}
           <Route
             path="/profile"
             element={
@@ -79,6 +79,16 @@ function App() {
             element={
               <ProtectedRoute adminOnly>
                 <MeetingDetail />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* 👇 YENİ ROUTE: Çalışma Raporları */}
+          <Route
+            path="/work-reports"
+            element={
+              <ProtectedRoute>
+                <WorkReports />
               </ProtectedRoute>
             }
           />
