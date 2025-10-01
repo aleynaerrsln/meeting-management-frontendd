@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const Login = () => {
@@ -57,9 +57,18 @@ const Login = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Şifre
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Şifre
+              </label>
+              {/* 🆕 Şifremi Unuttum Linki */}
+              <Link
+                to="/forgot-password"
+                className="text-sm text-blue-600 hover:text-blue-800 transition"
+              >
+                Şifremi Unuttum?
+              </Link>
+            </div>
             <input
               type="password"
               value={password}
