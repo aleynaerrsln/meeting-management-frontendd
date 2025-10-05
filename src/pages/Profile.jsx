@@ -1,21 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import axiosInstance from '../utils/axios'; // ✅ DÜZELTME
-
+import axiosInstance from '../utils/axios';
 
 const Profile = () => {
-  const { user } = useAuth();
+  const { user, checkAuth } = useAuth();
+  const fileInputRef = useRef(null);
   const [activeTab, setActiveTab] = useState('info');
   const [loading, setLoading] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [notification, setNotification] = useState(null);
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState(null);
+  
   const [profileData, setProfileData] = useState({
     firstName: '',
     lastName: '',
     email: '',
     role: '',
     lastLogin: '',
-    createdAt: ''
+    createdAt: '',
+    hasProfilePhoto: false
   });
+  
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
@@ -30,6 +35,11 @@ const Profile = () => {
     try {
       const response = await axiosInstance.get('/auth/profile');
       setProfileData(response.data);
+      
+      // Profil fotoğrafı varsa URL'i oluştur
+      if (response.data.hasProfilePhoto) {
+        setProfilePhotoUrl(`${axiosInstance.defaults.baseURL}/auth/profile-photo/${response.data._id}`);
+      }
     } catch (error) {
       console.error('Profil yüklenemedi:', error);
       showNotification('Profil bilgileri yüklenemedi', 'error');
@@ -39,6 +49,71 @@ const Profile = () => {
   const showNotification = (message, type = 'success') => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 3000);
+  };
+
+  // 🆕 Profil fotoğrafı yükleme
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Dosya tipi kontrolü
+    if (!file.type.startsWith('image/')) {
+      showNotification('Lütfen sadece resim dosyası yükleyin', 'error');
+      return;
+    }
+
+    // Dosya boyutu kontrolü (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      showNotification('Fotoğraf boyutu 5MB\'dan küçük olmalıdır', 'error');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('photo', file);
+
+    setUploadingPhoto(true);
+    try {
+      await axiosInstance.post('/auth/upload-profile-photo', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      showNotification('Profil fotoğrafı başarıyla yüklendi!', 'success');
+      
+      // 🆕 Profil bilgilerini ve Context'i güncelle
+      await fetchProfile();
+      await checkAuth();
+      
+      // 🆕 Sayfayı yenile ki diğer componentler de güncel fotoğrafı görsün
+      window.location.reload();
+    } catch (error) {
+      console.error('Fotoğraf yükleme hatası:', error);
+      showNotification(
+        error.response?.data?.message || 'Fotoğraf yüklenemedi',
+        'error'
+      );
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  // 🆕 Profil fotoğrafını sil
+  const handlePhotoDelete = async () => {
+    if (!confirm('Profil fotoğrafınızı silmek istediğinizden emin misiniz?')) {
+      return;
+    }
+
+    try {
+      await axiosInstance.delete('/auth/profile-photo');
+      showNotification('Profil fotoğrafı silindi', 'success');
+      setProfilePhotoUrl(null);
+      await fetchProfile();
+      await checkAuth();
+    } catch (error) {
+      console.error('Fotoğraf silme hatası:', error);
+      showNotification('Fotoğraf silinemedi', 'error');
+    }
   };
 
   const handlePasswordChange = async (e) => {
@@ -114,56 +189,21 @@ const Profile = () => {
             <div className="flex items-start">
               <div className="flex-shrink-0">
                 {notification.type === 'success' ? (
-                  <svg
-                    className="h-6 w-6 text-green-500"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
+                  <svg className="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 ) : (
-                  <svg
-                    className="h-6 w-6 text-red-500"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
+                  <svg className="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 )}
               </div>
               <div className="ml-3 flex-1">
-                <p className="text-sm font-medium text-gray-900">
-                  {notification.message}
-                </p>
+                <p className="text-sm font-medium text-gray-900">{notification.message}</p>
               </div>
-              <button
-                onClick={() => setNotification(null)}
-                className="ml-4 text-gray-400 hover:text-gray-600"
-              >
-                <svg
-                  className="h-5 w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
+              <button onClick={() => setNotification(null)} className="ml-4 text-gray-400 hover:text-gray-600">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
@@ -183,12 +223,61 @@ const Profile = () => {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6">
         <div className="px-6 py-8 border-b border-gray-200">
           <div className="flex items-center space-x-6">
-            {/* Avatar */}
-            <div className="flex-shrink-0">
-              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-3xl font-bold shadow-lg">
-                {profileData.firstName?.[0]}
-                {profileData.lastName?.[0]}
+            {/* Avatar with Upload */}
+            <div className="flex-shrink-0 relative group">
+              {profilePhotoUrl ? (
+                <img
+                  src={profilePhotoUrl}
+                  alt="Profil Fotoğrafı"
+                  className="w-24 h-24 rounded-full object-cover shadow-lg border-4 border-white"
+                />
+              ) : (
+                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-3xl font-bold shadow-lg">
+                  {profileData.firstName?.[0]}
+                  {profileData.lastName?.[0]}
+                </div>
+              )}
+              
+              {/* Upload Overlay */}
+              <div className="absolute inset-0 rounded-full bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all flex items-center justify-center">
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingPhoto}
+                    className="bg-white text-gray-800 p-2 rounded-full hover:bg-gray-100 transition shadow-lg"
+                    title="Fotoğraf değiştir"
+                  >
+                    {uploadingPhoto ? (
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-800"></div>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    )}
+                  </button>
+                  
+                  {profilePhotoUrl && (
+                    <button
+                      onClick={handlePhotoDelete}
+                      className="bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition shadow-lg"
+                      title="Fotoğrafı sil"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
               </div>
+              
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoUpload}
+                className="hidden"
+              />
             </div>
             
             {/* User Info */}
@@ -198,14 +287,13 @@ const Profile = () => {
               </h2>
               <p className="text-gray-600 mt-1">{profileData.email}</p>
               <div className="mt-3">
-                <span
-                  className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getRoleBadge(
-                    profileData.role
-                  )}`}
-                >
+                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getRoleBadge(profileData.role)}`}>
                   {getRoleName(profileData.role)}
                 </span>
               </div>
+              <p className="text-xs text-gray-500 mt-2">
+                💡 Fotoğrafınızın üzerine gelerek değiştirebilir veya silebilirsiniz
+              </p>
             </div>
           </div>
         </div>
@@ -242,62 +330,44 @@ const Profile = () => {
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Ad
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Ad</label>
                   <div className="px-4 py-3 bg-gray-50 rounded-lg border border-gray-200">
                     <p className="text-gray-900">{profileData.firstName}</p>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Soyad
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Soyad</label>
                   <div className="px-4 py-3 bg-gray-50 rounded-lg border border-gray-200">
                     <p className="text-gray-900">{profileData.lastName}</p>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    E-posta
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">E-posta</label>
                   <div className="px-4 py-3 bg-gray-50 rounded-lg border border-gray-200">
                     <p className="text-gray-900">{profileData.email}</p>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Rol
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Rol</label>
                   <div className="px-4 py-3 bg-gray-50 rounded-lg border border-gray-200">
-                    <p className="text-gray-900">
-                      {getRoleName(profileData.role)}
-                    </p>
+                    <p className="text-gray-900">{getRoleName(profileData.role)}</p>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Son Giriş
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Son Giriş</label>
                   <div className="px-4 py-3 bg-gray-50 rounded-lg border border-gray-200">
-                    <p className="text-gray-900">
-                      {formatDate(profileData.lastLogin)}
-                    </p>
+                    <p className="text-gray-900">{formatDate(profileData.lastLogin)}</p>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Hesap Oluşturma
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Hesap Oluşturma</label>
                   <div className="px-4 py-3 bg-gray-50 rounded-lg border border-gray-200">
-                    <p className="text-gray-900">
-                      {formatDate(profileData.createdAt)}
-                    </p>
+                    <p className="text-gray-900">{formatDate(profileData.createdAt)}</p>
                   </div>
                 </div>
               </div>
@@ -305,24 +375,13 @@ const Profile = () => {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <div className="flex">
                   <div className="flex-shrink-0">
-                    <svg
-                      className="h-5 w-5 text-blue-600"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
+                    <svg className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
                   <div className="ml-3">
                     <p className="text-sm text-blue-800">
-                      Profil bilgilerinizi değiştirmek için lütfen yöneticinizle
-                      iletişime geçin.
+                      Profil bilgilerinizi değiştirmek için lütfen yöneticinizle iletişime geçin.
                     </p>
                   </div>
                 </div>
@@ -334,18 +393,11 @@ const Profile = () => {
             <div>
               <form onSubmit={handlePasswordChange} className="space-y-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Mevcut Şifre
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Mevcut Şifre</label>
                   <input
                     type="password"
                     value={passwordData.currentPassword}
-                    onChange={(e) =>
-                      setPasswordData({
-                        ...passwordData,
-                        currentPassword: e.target.value
-                      })
-                    }
+                    onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Mevcut şifrenizi girin"
                     required
@@ -353,18 +405,11 @@ const Profile = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Yeni Şifre
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Yeni Şifre</label>
                   <input
                     type="password"
                     value={passwordData.newPassword}
-                    onChange={(e) =>
-                      setPasswordData({
-                        ...passwordData,
-                        newPassword: e.target.value
-                      })
-                    }
+                    onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Yeni şifrenizi girin (en az 6 karakter)"
                     required
@@ -372,18 +417,11 @@ const Profile = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Yeni Şifre (Tekrar)
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Yeni Şifre (Tekrar)</label>
                   <input
                     type="password"
                     value={passwordData.confirmPassword}
-                    onChange={(e) =>
-                      setPasswordData({
-                        ...passwordData,
-                        confirmPassword: e.target.value
-                      })
-                    }
+                    onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Yeni şifrenizi tekrar girin"
                     required
@@ -393,24 +431,12 @@ const Profile = () => {
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                   <div className="flex">
                     <div className="flex-shrink-0">
-                      <svg
-                        className="h-5 w-5 text-yellow-600"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                        />
+                      <svg className="h-5 w-5 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                       </svg>
                     </div>
                     <div className="ml-3">
-                      <p className="text-sm text-yellow-800 font-medium">
-                        Güvenlik İpuçları:
-                      </p>
+                      <p className="text-sm text-yellow-800 font-medium">Güvenlik İpuçları:</p>
                       <ul className="mt-2 text-sm text-yellow-700 list-disc list-inside space-y-1">
                         <li>Şifreniz en az 6 karakter olmalıdır</li>
                         <li>Büyük harf, küçük harf ve rakam kullanın</li>

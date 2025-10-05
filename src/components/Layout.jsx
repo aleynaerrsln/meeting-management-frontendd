@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import FloatingChatButton from './FloatingChatButton'; // 🆕 YENİ IMPORT
+import FloatingChatButton from './FloatingChatButton';
+import UserAvatar from './UserAvatar'; // 🆕 AVATAR COMPONENT
 
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -17,14 +18,16 @@ const Layout = ({ children }) => {
 
   const isActive = (path) => location.pathname === path;
 
-  // 🆕 Sponsorluklar menüye eklendi
+  // 🆕 Messages sayfasında padding olmasın
+  const isMessagesPage = location.pathname === '/messages';
+
   const adminMenuItems = [
     { name: 'Dashboard', path: '/dashboard', icon: '📊' },
     { name: 'Kullanıcılar', path: '/users', icon: '👥' },
     { name: 'Toplantılar', path: '/meetings', icon: '📅' },
     { name: 'Çalışma Raporları', path: '/work-reports', icon: '📝' },
     { name: 'Sponsorluklar', path: '/sponsorships', icon: '🤝' },
-    { name: 'Mesajlar', path: '/messages', icon: '💬' }, // 🆕 MESAJLAR
+    { name: 'Mesajlar', path: '/messages', icon: '💬' },
   ];
 
   const userMenuItems = [
@@ -32,7 +35,7 @@ const Layout = ({ children }) => {
     { name: 'Toplantılarım', path: '/meetings', icon: '📅' },
     { name: 'Çalışma Raporlarım', path: '/work-reports', icon: '📝' },
     { name: 'Sponsorluklar', path: '/sponsorships', icon: '🤝' },
-    { name: 'Mesajlar', path: '/messages', icon: '💬' }, // 🆕 MESAJLAR
+    { name: 'Mesajlar', path: '/messages', icon: '💬' },
   ];
 
   const menuItems = isAdmin ? adminMenuItems : userMenuItems;
@@ -46,13 +49,36 @@ const Layout = ({ children }) => {
         } bg-white border-r border-gray-200 transition-all duration-300 flex flex-col shadow-sm`}
       >
         {/* Logo */}
-        <div className="h-16 px-6 flex items-center justify-between border-b border-gray-200">
+        <div className="h-16 px-6 flex items-center justify-between border-b border-gray-200 bg-gradient-to-r from-indigo-600 to-blue-600">
           {sidebarOpen && (
-            <h1 className="text-xl font-bold text-indigo-600">Toplantı Yönetim</h1>
+            <div className="flex items-center gap-3">
+              {/* 🆕 Logo */}
+              <img 
+                src="/logo.png
+                " 
+                alt="Logo" 
+                className="w-10 h-10 object-contain rounded-lg bg-white p-1"
+                onError={(e) => {
+                  e.target.style.display = 'none'; // Logo yoksa gizle
+                }}
+              />
+              <h1 className="text-xl font-bold text-white">Toplantı Yönetim</h1>
+            </div>
+          )}
+          {!sidebarOpen && (
+            <img 
+              src="/logo.png
+              " 
+              alt="Logo" 
+              className="w-10 h-10 object-contain rounded-lg bg-white p-1 mx-auto"
+              onError={(e) => {
+                e.target.style.display = 'none';
+              }}
+            />
           )}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 rounded-lg hover:bg-gray-100 text-gray-600"
+            className="p-2 rounded-lg hover:bg-white/10 text-white transition"
           >
             {sidebarOpen ? '←' : '→'}
           </button>
@@ -85,9 +111,8 @@ const Layout = ({ children }) => {
         <div className="px-4 py-4 border-t border-gray-200">
           {sidebarOpen ? (
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center text-white font-semibold">
-                {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
-              </div>
+              {/* 🆕 UserAvatar Component */}
+              <UserAvatar user={user} size="lg" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">
                   {user?.firstName} {user?.lastName}
@@ -104,9 +129,8 @@ const Layout = ({ children }) => {
             </div>
           ) : (
             <div className="flex justify-center">
-              <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center text-white font-semibold">
-                {user?.firstName?.charAt(0)}
-              </div>
+              {/* 🆕 UserAvatar Component - Küçük */}
+              <UserAvatar user={user} size="lg" />
             </div>
           )}
         </div>
@@ -162,7 +186,8 @@ const Layout = ({ children }) => {
 
         {/* Content Area */}
         <main className="flex-1 overflow-y-auto bg-gray-50">
-          <div className="max-w-7xl mx-auto px-8 py-8">
+          {/* 🆕 Messages sayfasında padding yok, diğer sayfalarda var */}
+          <div className={isMessagesPage ? '' : 'max-w-7xl mx-auto px-8 py-8'}>
             {children}
           </div>
         </main>

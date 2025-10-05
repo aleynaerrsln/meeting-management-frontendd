@@ -7,6 +7,7 @@ const Dashboard = () => {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [showLogo, setShowLogo] = useState(true);
   const [stats, setStats] = useState({
     upcomingMeetings: 0,
     totalMeetings: 0,
@@ -131,14 +132,61 @@ const Dashboard = () => {
 
   return (
     <div>
-      {/* Welcome Section */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">
-          Hoş geldiniz, {user?.firstName}! 👋
-        </h1>
-        <p className="text-gray-600 mt-2">
-          İşte bugünkü özet ve son durumunuz
-        </p>
+      {/* 🆕 Logo Banner */}
+      <div className="mb-8 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-2xl shadow-2xl overflow-hidden animate-fadeIn">
+        <div className="px-8 py-6 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            {/* Logo */}
+            {showLogo && (
+              <div className="relative">
+                <img 
+                  src="/logo.png
+                  
+                  " 
+                  alt="Logo" 
+                  className="w-16 h-16 object-contain bg-white/10 backdrop-blur-sm rounded-xl p-2 shadow-lg"
+                  onError={() => setShowLogo(false)}
+                />
+                <div className="absolute inset-0 bg-white/20 rounded-xl blur-xl -z-10"></div>
+              </div>
+            )}
+            
+            {/* Başlık */}
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-white mb-1">
+                Toplantı ve Çalışma Yönetim Sistemi
+              </h1>
+              <p className="text-blue-100 text-sm md:text-base">
+                Hoş geldiniz, <span className="font-semibold">{user?.firstName} {user?.lastName}</span>! 👋
+              </p>
+            </div>
+          </div>
+
+          {/* Sağ taraf - Tarih ve Rol */}
+          <div className="text-center md:text-right">
+            <p className="text-white/90 font-semibold text-base md:text-lg">
+              {new Date().toLocaleDateString('tr-TR', { 
+                weekday: 'long', 
+                day: 'numeric', 
+                month: 'long', 
+                year: 'numeric' 
+              })}
+            </p>
+            <p className="text-blue-100 text-sm mt-1 flex items-center justify-center md:justify-end gap-2">
+              {user?.role === 'admin' ? (
+                <>
+                  <span>👑</span>
+                  <span className="font-medium">Yönetici Paneli</span>
+                </>
+              ) : (
+                <>
+                  <span>👤</span>
+                  <span className="font-medium">Kullanıcı Paneli</span>
+                </>
+              )}
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Stats Grid */}
@@ -146,7 +194,7 @@ const Dashboard = () => {
         {/* Yaklaşan Toplantılar */}
         <div 
           onClick={() => navigate('/meetings')}
-          className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition cursor-pointer"
+          className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all cursor-pointer transform hover:scale-105"
         >
           <div className="flex items-center justify-between mb-4">
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center text-2xl">
@@ -164,7 +212,7 @@ const Dashboard = () => {
         {!isAdmin && (
           <div 
             onClick={() => navigate('/work-reports')}
-            className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition cursor-pointer"
+            className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all cursor-pointer transform hover:scale-105"
           >
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center text-2xl">
@@ -182,7 +230,7 @@ const Dashboard = () => {
         {/* Toplam Raporlar */}
         <div 
           onClick={() => navigate(isAdmin ? '/work-reports' : '/work-reports')}
-          className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition cursor-pointer"
+          className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all cursor-pointer transform hover:scale-105"
         >
           <div className="flex items-center justify-between mb-4">
             <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center text-2xl">
@@ -202,7 +250,7 @@ const Dashboard = () => {
         {isAdmin && (
           <div 
             onClick={() => navigate('/users')}
-            className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition cursor-pointer"
+            className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all cursor-pointer transform hover:scale-105"
           >
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center text-2xl">
@@ -221,7 +269,7 @@ const Dashboard = () => {
         {!isAdmin && (
           <div 
             onClick={() => navigate('/meetings')}
-            className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition cursor-pointer"
+            className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all cursor-pointer transform hover:scale-105"
           >
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center text-2xl">
@@ -245,7 +293,7 @@ const Dashboard = () => {
             <h2 className="text-lg font-semibold text-gray-900">Yaklaşan Toplantılar</h2>
             <button
               onClick={() => navigate('/meetings')}
-              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+              className="text-sm text-blue-600 hover:text-blue-800 font-medium transition"
             >
               Tümünü Gör →
             </button>
@@ -305,7 +353,7 @@ const Dashboard = () => {
               <h2 className="text-lg font-semibold text-gray-900">Son Çalışma Raporlarım</h2>
               <button
                 onClick={() => navigate('/work-reports')}
-                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                className="text-sm text-blue-600 hover:text-blue-800 font-medium transition"
               >
                 Tümünü Gör →
               </button>
@@ -423,27 +471,27 @@ const Dashboard = () => {
 
       {/* Quick Actions */}
       <div className="mt-8 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Hızlı İşlemler</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">⚡ Hızlı İşlemler</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {isAdmin ? (
             <>
               <button
                 onClick={() => navigate('/meetings/create')}
-                className="flex items-center justify-center p-4 bg-white rounded-lg hover:shadow-md transition border border-gray-200"
+                className="flex items-center justify-center p-4 bg-white rounded-lg hover:shadow-md transition-all border border-gray-200 transform hover:scale-105"
               >
                 <span className="text-2xl mr-3">📅</span>
                 <span className="font-medium text-gray-900">Yeni Toplantı</span>
               </button>
               <button
                 onClick={() => navigate('/users')}
-                className="flex items-center justify-center p-4 bg-white rounded-lg hover:shadow-md transition border border-gray-200"
+                className="flex items-center justify-center p-4 bg-white rounded-lg hover:shadow-md transition-all border border-gray-200 transform hover:scale-105"
               >
                 <span className="text-2xl mr-3">👤</span>
                 <span className="font-medium text-gray-900">Kullanıcı Ekle</span>
               </button>
               <button
                 onClick={() => navigate('/work-reports')}
-                className="flex items-center justify-center p-4 bg-white rounded-lg hover:shadow-md transition border border-gray-200"
+                className="flex items-center justify-center p-4 bg-white rounded-lg hover:shadow-md transition-all border border-gray-200 transform hover:scale-105"
               >
                 <span className="text-2xl mr-3">📊</span>
                 <span className="font-medium text-gray-900">Raporları Görüntüle</span>
@@ -453,21 +501,21 @@ const Dashboard = () => {
             <>
               <button
                 onClick={() => navigate('/meetings')}
-                className="flex items-center justify-center p-4 bg-white rounded-lg hover:shadow-md transition border border-gray-200"
+                className="flex items-center justify-center p-4 bg-white rounded-lg hover:shadow-md transition-all border border-gray-200 transform hover:scale-105"
               >
                 <span className="text-2xl mr-3">📅</span>
                 <span className="font-medium text-gray-900">Toplantılarım</span>
               </button>
               <button
                 onClick={() => navigate('/work-reports/create')}
-                className="flex items-center justify-center p-4 bg-white rounded-lg hover:shadow-md transition border border-gray-200"
+                className="flex items-center justify-center p-4 bg-white rounded-lg hover:shadow-md transition-all border border-gray-200 transform hover:scale-105"
               >
                 <span className="text-2xl mr-3">📝</span>
                 <span className="font-medium text-gray-900">Rapor Ekle</span>
               </button>
               <button
                 onClick={() => navigate('/work-reports')}
-                className="flex items-center justify-center p-4 bg-white rounded-lg hover:shadow-md transition border border-gray-200"
+                className="flex items-center justify-center p-4 bg-white rounded-lg hover:shadow-md transition-all border border-gray-200 transform hover:scale-105"
               >
                 <span className="text-2xl mr-3">📊</span>
                 <span className="font-medium text-gray-900">Raporlarım</span>

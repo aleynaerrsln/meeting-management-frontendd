@@ -28,7 +28,11 @@ export const AuthProvider = ({ children }) => {
         setUser(JSON.parse(savedUser));
         // Token'ı verify etmek için profile endpoint'ini çağır
         const response = await axiosInstance.get('/auth/profile');
-        setUser(response.data);
+        const userData = response.data;
+        
+        // 🆕 localStorage'ı da güncelle (profil fotoğrafı bilgisi dahil)
+        localStorage.setItem('user', JSON.stringify(userData));
+        setUser(userData);
       } catch (error) {
         console.error('Auth kontrol hatası:', error);
         localStorage.removeItem('token');
@@ -68,12 +72,16 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  // 🆕 isAdmin helper
+  const isAdmin = user?.role === 'admin';
+
   const value = {
     user,
     loading,
     login,
     logout,
     checkAuth,
+    isAdmin // 🆕 Eklendi
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
