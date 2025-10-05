@@ -7,7 +7,8 @@ import Profile from './pages/Profile';
 import Users from './pages/Users';
 import Meetings from './pages/Meetings';
 import MeetingDetail from './pages/MeetingDetail';
-import WorkReports from './pages/WorkReports'; // 👈 YENİ
+import WorkReports from './pages/WorkReports';
+import Sponsorships from './pages/Sponsorships'; // 🆕 YENİ
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 
@@ -85,12 +86,21 @@ function App() {
             }
           />
 
-          {/* 👇 YENİ ROUTE: Çalışma Raporları */}
           <Route
             path="/work-reports"
             element={
               <ProtectedRoute>
                 <WorkReports />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* 🆕 YENİ ROUTE: Sponsorluklar */}
+          <Route
+            path="/sponsorships"
+            element={
+              <ProtectedRoute>
+                <Sponsorships />
               </ProtectedRoute>
             }
           />

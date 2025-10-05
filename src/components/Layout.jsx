@@ -16,17 +16,20 @@ const Layout = ({ children }) => {
 
   const isActive = (path) => location.pathname === path;
 
+  // 🆕 Sponsorluklar menüye eklendi
   const adminMenuItems = [
     { name: 'Dashboard', path: '/dashboard', icon: '📊' },
     { name: 'Kullanıcılar', path: '/users', icon: '👥' },
     { name: 'Toplantılar', path: '/meetings', icon: '📅' },
     { name: 'Çalışma Raporları', path: '/work-reports', icon: '📝' },
+    { name: 'Sponsorluklar', path: '/sponsorships', icon: '🤝' }, // 🆕 YENİ
   ];
 
   const userMenuItems = [
     { name: 'Dashboard', path: '/dashboard', icon: '📊' },
     { name: 'Toplantılarım', path: '/meetings', icon: '📅' },
     { name: 'Çalışma Raporlarım', path: '/work-reports', icon: '📝' },
+    { name: 'Sponsorluklar', path: '/sponsorships', icon: '🤝' }, // 🆕 YENİ
   ];
 
   const menuItems = isAdmin ? adminMenuItems : userMenuItems;

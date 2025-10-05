@@ -21,7 +21,8 @@ const WorkReports = () => {
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     workDescription: '',
-    hoursWorked: '',
+    startTime: '',
+    endTime: '',
     project: '',
     notes: ''
   });
@@ -123,7 +124,8 @@ const WorkReports = () => {
     setFormData({
       date: report.date.split('T')[0],
       workDescription: report.workDescription,
-      hoursWorked: report.hoursWorked,
+      startTime: report.startTime || '',
+      endTime: report.endTime || '',
       project: report.project || '',
       notes: report.notes || ''
     });
@@ -157,7 +159,8 @@ const WorkReports = () => {
     setFormData({
       date: new Date().toISOString().split('T')[0],
       workDescription: '',
-      hoursWorked: '',
+      startTime: '',
+      endTime: '',
       project: '',
       notes: ''
     });
@@ -215,32 +218,30 @@ const WorkReports = () => {
             disabled={exporting || reports.length === 0}
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium disabled:opacity-50 flex items-center gap-2"
           >
-            {exporting ? 'İndiriliyor...' : '📥 Excel İndir'}
+            {exporting ? '⏳ İndiriliyor...' : '📥 Excel İndir'}
           </button>
-          {!isAdmin && (
-            <button
-              onClick={() => setShowModal(true)}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium"
-            >
-              + Yeni Rapor
-            </button>
-          )}
+          <button
+            onClick={() => setShowModal(true)}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium"
+          >
+            + Yeni Rapor
+          </button>
         </div>
       </div>
 
       {/* Filters */}
       {isAdmin && (
-        <div className="bg-white rounded-xl shadow-sm border p-4 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <select
               value={filters.userId}
               onChange={(e) => setFilters({ ...filters, userId: e.target.value })}
               className="px-3 py-2 border rounded-lg text-sm"
             >
               <option value="">Tüm Kullanıcılar</option>
-              {users.map(user => (
-                <option key={user._id} value={user._id}>
-                  {user.firstName} {user.lastName}
+              {users.map(u => (
+                <option key={u._id} value={u._id}>
+                  {u.firstName} {u.lastName}
                 </option>
               ))}
             </select>
@@ -288,8 +289,8 @@ const WorkReports = () => {
         </div>
       )}
 
-      {/* Stats - MODERN KARTLAR */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      {/* Stats - 2 KART (Ortalama Kaldırıldı) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200">
           <div className="flex items-center justify-between">
             <div>
@@ -304,21 +305,9 @@ const WorkReports = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-indigo-700 mb-1 font-medium">Toplam Saat</p>
-              <p className="text-3xl font-bold text-indigo-900">{totalHours}h</p>
+              <p className="text-3xl font-bold text-indigo-900">{totalHours.toFixed(2)}h</p>
             </div>
             <div className="text-4xl">⏰</div>
-          </div>
-        </div>
-        
-        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-green-700 mb-1 font-medium">Ortalama Saat</p>
-              <p className="text-3xl font-bold text-green-900">
-                {reports.length > 0 ? (totalHours / reports.length).toFixed(1) : 0}h
-              </p>
-            </div>
-            <div className="text-4xl">📈</div>
           </div>
         </div>
       </div>
@@ -369,55 +358,42 @@ const WorkReports = () => {
                   </p>
 
                   <div className="flex items-center gap-4 text-xs text-gray-600">
+                    {report.startTime && report.endTime && (
+                      <span className="flex items-center gap-1">
+                        <span className="text-base">🕐</span>
+                        <span className="font-medium">{report.startTime} - {report.endTime}</span>
+                      </span>
+                    )}
                     <span className="flex items-center gap-1">
-                      <span className="text-base">⏰</span>
-                      <span className="font-medium">{report.hoursWorked} saat</span>
+                      <span className="text-base">⏱️</span>
+                      <span className="font-semibold text-indigo-600">{report.hoursWorked} saat çalışıldı</span>
                     </span>
                     <span className="flex items-center gap-1">
                       <span className="text-base">📅</span>
-                      <span>{report.week}. hafta</span>
+                      <span>{report.week}. Hafta</span>
                     </span>
-                    {isAdmin && (
-                      <span className="flex items-center gap-1">
-                        <span className="text-base">👤</span>
-                        <span>{report.user.firstName} {report.user.lastName}</span>
-                      </span>
-                    )}
                   </div>
                 </div>
 
-                {/* Sağ Taraf Butonları */}
-                <div className="flex flex-col gap-2 ml-4">
+                <div className="flex gap-2">
                   <button
-                    onClick={() => setExpandedReports(prev => ({
-                      ...prev,
-                      [report._id]: !prev[report._id]
-                    }))}
-                    className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg flex items-center gap-1 whitespace-nowrap transition"
+                    onClick={() => setExpandedReports(prev => ({ ...prev, [report._id]: !prev[report._id] }))}
+                    className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition"
                   >
                     {expandedReports[report._id] ? '▲ Gizle' : '▼ Detay'}
                   </button>
 
-                  {report.meeting && (
-                    <button
-                      onClick={() => window.location.href = `/meetings/${report.meeting._id}`}
-                      className="px-3 py-1.5 text-xs bg-blue-600 text-white hover:bg-blue-700 rounded-lg whitespace-nowrap transition"
-                    >
-                      📅 Toplantı
-                    </button>
-                  )}
-
-                  {!report.meeting && (!isAdmin || report.user._id === user.id) && (
+                  {(isAdmin || report.user._id === user.id) && (
                     <>
                       <button
                         onClick={() => handleEdit(report)}
-                        className="px-3 py-1.5 text-xs text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                        className="px-3 py-1.5 text-xs bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition"
                       >
                         ✏️ Düzenle
                       </button>
                       <button
                         onClick={() => handleDelete(report._id)}
-                        className="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-lg transition"
+                        className="px-3 py-1.5 text-xs bg-red-600 text-white hover:bg-red-700 rounded-lg transition"
                       >
                         🗑️ Sil
                       </button>
@@ -523,7 +499,7 @@ const WorkReports = () => {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tarih
+                    Tarih *
                   </label>
                   <input
                     type="date"
@@ -532,6 +508,40 @@ const WorkReports = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                     required
                   />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Başlangıç Saati *
+                    </label>
+                    <input
+                      type="time"
+                      value={formData.startTime}
+                      onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Bitiş Saati *
+                    </label>
+                    <input
+                      type="time"
+                      value={formData.endTime}
+                      onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-xs text-blue-800">
+                    💡 Çalışma süresi otomatik hesaplanacak
+                  </p>
                 </div>
 
                 <div>
@@ -549,7 +559,7 @@ const WorkReports = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Çalışma Açıklaması
+                    Çalışma Açıklaması *
                   </label>
                   <textarea
                     value={formData.workDescription}
@@ -557,23 +567,6 @@ const WorkReports = () => {
                     rows="4"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                     placeholder="Bugün yaptığınız çalışmaları detaylı açıklayın..."
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Çalışma Saati
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.hoursWorked}
-                    onChange={(e) => setFormData({ ...formData, hoursWorked: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                    placeholder="Saat"
-                    min="0"
-                    max="24"
-                    step="0.5"
                     required
                   />
                 </div>

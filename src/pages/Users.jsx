@@ -12,6 +12,10 @@ const Users = () => {
     email: '',
     password: '',
     role: 'user',
+    birthDate: '',
+    birthPlace: '',
+    nationalId: '',
+    iban: ''
   });
 
   useEffect(() => {
@@ -43,9 +47,11 @@ const Users = () => {
       if (editingUser) {
         // Güncelleme
         await axiosInstance.put(`/users/${editingUser._id}`, formData);
+        alert('Kullanıcı güncellendi!');
       } else {
         // Yeni kullanıcı
         await axiosInstance.post('/users', formData);
+        alert('Kullanıcı oluşturuldu!');
       }
       
       fetchUsers();
@@ -64,6 +70,10 @@ const Users = () => {
       email: user.email,
       password: '',
       role: user.role,
+      birthDate: user.birthDate ? user.birthDate.split('T')[0] : '',
+      birthPlace: user.birthPlace || '',
+      nationalId: user.nationalId || '',
+      iban: user.iban || ''
     });
     setShowModal(true);
   };
@@ -75,6 +85,7 @@ const Users = () => {
 
     try {
       await axiosInstance.delete(`/users/${userId}`);
+      alert('Kullanıcı silindi!');
       fetchUsers();
     } catch (error) {
       console.error('Silme işlemi başarısız:', error);
@@ -91,6 +102,10 @@ const Users = () => {
       email: '',
       password: '',
       role: 'user',
+      birthDate: '',
+      birthPlace: '',
+      nationalId: '',
+      iban: ''
     });
   };
 
@@ -204,87 +219,166 @@ const Users = () => {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-semibold text-gray-900">
                 {editingUser ? 'Kullanıcı Düzenle' : 'Yeni Kullanıcı Ekle'}
               </h3>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Ad
-                </label>
-                <input
-                  type="text"
-                  name="firstName"
-                  value={formData.firstName}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  required
-                />
+            <form onSubmit={handleSubmit} className="p-6">
+              {/* Temel Bilgiler */}
+              <div className="mb-6">
+                <h4 className="text-sm font-semibold text-gray-700 mb-4 flex items-center">
+                  <span className="w-6 h-6 bg-indigo-100 rounded-full flex items-center justify-center mr-2 text-indigo-600">1</span>
+                  Temel Bilgiler
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Ad *
+                    </label>
+                    <input
+                      type="text"
+                      name="firstName"
+                      value={formData.firstName}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Soyad *
+                    </label>
+                    <input
+                      type="text"
+                      name="lastName"
+                      value={formData.lastName}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      E-posta *
+                    </label>
+                    <input
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Şifre {editingUser && '(Boş bırakın değiştirmek istemiyorsanız)'}
+                    </label>
+                    <input
+                      type="password"
+                      name="password"
+                      value={formData.password}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      required={!editingUser}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Rol *
+                    </label>
+                    <select
+                      name="role"
+                      value={formData.role}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                      <option value="user">Kullanıcı</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Soyad
-                </label>
-                <input
-                  type="text"
-                  name="lastName"
-                  value={formData.lastName}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  required
-                />
+              {/* Kişisel Bilgiler */}
+              <div className="mb-6 pt-6 border-t border-gray-200">
+                <h4 className="text-sm font-semibold text-gray-700 mb-4 flex items-center">
+                  <span className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-2 text-green-600">2</span>
+                  Kişisel Bilgiler (Opsiyonel)
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Doğum Tarihi
+                    </label>
+                    <input
+                      type="date"
+                      name="birthDate"
+                      value={formData.birthDate}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Doğum Yeri
+                    </label>
+                    <input
+                      type="text"
+                      name="birthPlace"
+                      value={formData.birthPlace}
+                      onChange={handleInputChange}
+                      placeholder="Örn: Ankara"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      TC Kimlik No
+                    </label>
+                    <input
+                      type="text"
+                      name="nationalId"
+                      value={formData.nationalId}
+                      onChange={handleInputChange}
+                      placeholder="11 haneli TC No"
+                      maxLength="11"
+                      pattern="\d{11}"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">11 haneli olmalıdır</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      IBAN
+                    </label>
+                    <input
+                      type="text"
+                      name="iban"
+                      value={formData.iban}
+                      onChange={handleInputChange}
+                      placeholder="TR00 0000 0000 0000 0000 0000 00"
+                      maxLength="26"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">TR ile başlamalı, 26 karakter olmalıdır</p>
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  E-posta
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Şifre {editingUser && '(Boş bırakın değiştirmek istemiyorsanız)'}
-                </label>
-                <input
-                  type="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  required={!editingUser}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Rol
-                </label>
-                <select
-                  name="role"
-                  value={formData.role}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                >
-                  <option value="user">Kullanıcı</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-
-              <div className="flex gap-3 pt-4">
+              {/* Butonlar */}
+              <div className="flex gap-3 pt-4 border-t border-gray-200">
                 <button
                   type="button"
                   onClick={handleCloseModal}
