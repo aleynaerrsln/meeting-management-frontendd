@@ -132,7 +132,7 @@ const Dashboard = () => {
 
   return (
     <div>
-      {/* 🆕 Logo Banner */}
+      {/* Logo Banner */}
       <div className="mb-8 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-2xl shadow-2xl overflow-hidden animate-fadeIn">
         <div className="px-8 py-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
@@ -140,9 +140,7 @@ const Dashboard = () => {
             {showLogo && (
               <div className="relative">
                 <img 
-                  src="/logo.png
-                  
-                  " 
+                  src="/images/logo.png" 
                   alt="Logo" 
                   className="w-16 h-16 object-contain bg-white/10 backdrop-blur-sm rounded-xl p-2 shadow-lg"
                   onError={() => setShowLogo(false)}
@@ -159,6 +157,20 @@ const Dashboard = () => {
               <p className="text-blue-100 text-sm md:text-base">
                 Hoş geldiniz, <span className="font-semibold">{user?.firstName} {user?.lastName}</span>! 👋
               </p>
+              
+              {/* Birimler gösterimi */}
+              {user?.departments && user.departments.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {user.departments.map((dept, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-white/20 text-white backdrop-blur-sm border border-white/30"
+                    >
+                      {dept}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

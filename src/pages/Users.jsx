@@ -1,6 +1,15 @@
 import { useState, useEffect } from 'react';
 import axiosInstance from '../api/axios';
 
+const DEPARTMENTS = [
+  'Yazılım Birimi',
+  'Elektrik Birimi',
+  'Makine Birimi',
+  'Tasarım Birimi',
+  'Yönetim Birimi',
+  'Pazarlama Birimi'
+];
+
 const Users = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -12,6 +21,7 @@ const Users = () => {
     email: '',
     password: '',
     role: 'user',
+    departments: [], // 🆕 Birimler
     birthDate: '',
     birthPlace: '',
     nationalId: '',
@@ -40,16 +50,24 @@ const Users = () => {
     });
   };
 
+  // 🆕 Birim seçimi toggle
+  const toggleDepartment = (dept) => {
+    setFormData(prev => ({
+      ...prev,
+      departments: prev.departments.includes(dept)
+        ? prev.departments.filter(d => d !== dept)
+        : [...prev.departments, dept]
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     try {
       if (editingUser) {
-        // Güncelleme
         await axiosInstance.put(`/users/${editingUser._id}`, formData);
         alert('Kullanıcı güncellendi!');
       } else {
-        // Yeni kullanıcı
         await axiosInstance.post('/users', formData);
         alert('Kullanıcı oluşturuldu!');
       }
@@ -70,6 +88,7 @@ const Users = () => {
       email: user.email,
       password: '',
       role: user.role,
+      departments: user.departments || [], // 🆕
       birthDate: user.birthDate ? user.birthDate.split('T')[0] : '',
       birthPlace: user.birthPlace || '',
       nationalId: user.nationalId || '',
@@ -102,6 +121,7 @@ const Users = () => {
       email: '',
       password: '',
       role: 'user',
+      departments: [],
       birthDate: '',
       birthPlace: '',
       nationalId: '',
@@ -148,10 +168,10 @@ const Users = () => {
                 Rol
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Durum
+                Birimler
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Kayıt Tarihi
+                Durum
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 İşlemler
@@ -163,10 +183,7 @@ const Users = () => {
               <tr key={user._id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
-                    <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-semibold">
-                      {user.firstName.charAt(0)}{user.lastName.charAt(0)}
-                    </div>
-                    <div className="ml-4">
+                    <div>
                       <div className="text-sm font-medium text-gray-900">
                         {user.firstName} {user.lastName}
                       </div>
@@ -185,6 +202,23 @@ const Users = () => {
                     {user.role === 'admin' ? 'Admin' : 'Kullanıcı'}
                   </span>
                 </td>
+                <td className="px-6 py-4">
+                  {/* 🆕 Birimler gösterimi */}
+                  <div className="flex flex-wrap gap-1">
+                    {user.departments && user.departments.length > 0 ? (
+                      user.departments.map((dept, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full"
+                        >
+                          {dept}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-gray-400">Birim yok</span>
+                    )}
+                  </div>
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                     user.isActive
@@ -193,9 +227,6 @@ const Users = () => {
                   }`}>
                     {user.isActive ? 'Aktif' : 'Pasif'}
                   </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {new Date(user.createdAt).toLocaleDateString('tr-TR')}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <button
@@ -223,18 +254,15 @@ const Users = () => {
           <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-semibold text-gray-900">
-                {editingUser ? 'Kullanıcı Düzenle' : 'Yeni Kullanıcı Ekle'}
+                {editingUser ? 'Kullanıcıyı Düzenle' : 'Yeni Kullanıcı Ekle'}
               </h3>
             </div>
-            
+
             <form onSubmit={handleSubmit} className="p-6">
               {/* Temel Bilgiler */}
               <div className="mb-6">
-                <h4 className="text-sm font-semibold text-gray-700 mb-4 flex items-center">
-                  <span className="w-6 h-6 bg-indigo-100 rounded-full flex items-center justify-center mr-2 text-indigo-600">1</span>
-                  Temel Bilgiler
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <h4 className="text-md font-semibold text-gray-800 mb-4">Temel Bilgiler</h4>
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Ad *
@@ -308,13 +336,38 @@ const Users = () => {
                 </div>
               </div>
 
+              {/* 🆕 Birimler Seçimi */}
+              <div className="mb-6">
+                <h4 className="text-md font-semibold text-gray-800 mb-3">Birimler</h4>
+                <p className="text-sm text-gray-600 mb-3">Birden fazla birim seçebilirsiniz</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {DEPARTMENTS.map((dept) => (
+                    <label
+                      key={dept}
+                      className={`flex items-center p-3 border-2 rounded-lg cursor-pointer transition ${
+                        formData.departments.includes(dept)
+                          ? 'border-indigo-500 bg-indigo-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={formData.departments.includes(dept)}
+                        onChange={() => toggleDepartment(dept)}
+                        className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                      />
+                      <span className="ml-2 text-sm font-medium text-gray-700">
+                        {dept}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               {/* Kişisel Bilgiler */}
-              <div className="mb-6 pt-6 border-t border-gray-200">
-                <h4 className="text-sm font-semibold text-gray-700 mb-4 flex items-center">
-                  <span className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-2 text-green-600">2</span>
-                  Kişisel Bilgiler (Opsiyonel)
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="mb-6">
+                <h4 className="text-md font-semibold text-gray-800 mb-4">Kişisel Bilgiler</h4>
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Doğum Tarihi
@@ -337,8 +390,8 @@ const Users = () => {
                       name="birthPlace"
                       value={formData.birthPlace}
                       onChange={handleInputChange}
-                      placeholder="Örn: Ankara"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="Ankara"
                     />
                   </div>
 
@@ -351,12 +404,10 @@ const Users = () => {
                       name="nationalId"
                       value={formData.nationalId}
                       onChange={handleInputChange}
-                      placeholder="11 haneli TC No"
-                      maxLength="11"
-                      pattern="\d{11}"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="12345678901"
+                      maxLength="11"
                     />
-                    <p className="text-xs text-gray-500 mt-1">11 haneli olmalıdır</p>
                   </div>
 
                   <div>
@@ -368,27 +419,25 @@ const Users = () => {
                       name="iban"
                       value={formData.iban}
                       onChange={handleInputChange}
-                      placeholder="TR00 0000 0000 0000 0000 0000 00"
-                      maxLength="26"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="TR00 0000 0000 0000 0000 0000 00"
                     />
-                    <p className="text-xs text-gray-500 mt-1">TR ile başlamalı, 26 karakter olmalıdır</p>
                   </div>
                 </div>
               </div>
 
               {/* Butonlar */}
-              <div className="flex gap-3 pt-4 border-t border-gray-200">
+              <div className="flex justify-end gap-3">
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
                 >
                   İptal
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium"
                 >
                   {editingUser ? 'Güncelle' : 'Oluştur'}
                 </button>

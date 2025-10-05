@@ -2,6 +2,15 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../api/axios';
 
+const DEPARTMENTS = [
+  'Yazılım Birimi',
+  'Elektrik Birimi',
+  'Makine Birimi',
+  'Tasarım Birimi',
+  'Yönetim Birimi',
+  'Pazarlama Birimi'
+];
+
 const Meetings = () => {
   const navigate = useNavigate();
   const [meetings, setMeetings] = useState([]);
@@ -10,7 +19,7 @@ const Meetings = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingMeeting, setEditingMeeting] = useState(null);
   const [exporting, setExporting] = useState(false);
-  const [exportingId, setExportingId] = useState(null); // Hangi toplantı export ediliyor
+  const [exportingId, setExportingId] = useState(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -45,7 +54,6 @@ const Meetings = () => {
     }
   };
 
-  // Tüm toplantıları export et
   const handleExportExcel = async () => {
     try {
       setExporting(true);
@@ -71,7 +79,6 @@ const Meetings = () => {
     }
   };
 
-  // Tekil toplantı - Yoklama listesi indir
   const handleExportAttendance = async (meetingId) => {
     try {
       setExportingId(meetingId + '-attendance');
@@ -97,7 +104,6 @@ const Meetings = () => {
     }
   };
 
-  // Tekil toplantı - Not raporu indir
   const handleExportNotes = async (meetingId) => {
     try {
       setExportingId(meetingId + '-notes');
@@ -138,6 +144,48 @@ const Meetings = () => {
         ? prev.participants.filter((id) => id !== userId)
         : [...prev.participants, userId],
     }));
+  };
+
+  // Birim bazında toplu seçim
+  const handleDepartmentToggle = (department) => {
+    const departmentUsers = users.filter(user => 
+      user.departments && user.departments.includes(department)
+    );
+    
+    const departmentUserIds = departmentUsers.map(u => u._id);
+    
+    const allSelected = departmentUserIds.every(id => 
+      formData.participants.includes(id)
+    );
+    
+    setFormData((prev) => {
+      if (allSelected) {
+        return {
+          ...prev,
+          participants: prev.participants.filter(id => 
+            !departmentUserIds.includes(id)
+          )
+        };
+      } else {
+        const newParticipants = [...new Set([...prev.participants, ...departmentUserIds])];
+        return {
+          ...prev,
+          participants: newParticipants
+        };
+      }
+    });
+  };
+
+  // Tümünü seç/kaldır
+  const handleSelectAll = () => {
+    if (formData.participants.length === users.length) {
+      setFormData(prev => ({ ...prev, participants: [] }));
+    } else {
+      setFormData(prev => ({ 
+        ...prev, 
+        participants: users.map(u => u._id) 
+      }));
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -200,22 +248,12 @@ const Meetings = () => {
     });
   };
 
-  const getStatusBadge = (status) => {
-    const badges = {
-      planned: 'bg-blue-100 text-blue-800',
-      completed: 'bg-green-100 text-green-800',
-      cancelled: 'bg-red-100 text-red-800',
-    };
-    const texts = {
-      planned: 'Planlandı',
-      completed: 'Tamamlandı',
-      cancelled: 'İptal Edildi',
-    };
-    return (
-      <span className={`px-3 py-1 rounded-full text-xs font-medium ${badges[status]}`}>
-        {texts[status]}
-      </span>
-    );
+  const formatDate = (date) => {
+    return new Date(date).toLocaleDateString('tr-TR', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
   };
 
   if (loading) {
@@ -232,28 +270,15 @@ const Meetings = () => {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Toplantılar</h1>
-          <p className="text-gray-600 mt-1">Tüm toplantıları yönetin</p>
+          <p className="text-gray-600 mt-1">Tüm toplantıları görüntüleyin ve yönetin</p>
         </div>
         <div className="flex gap-3">
           <button
             onClick={handleExportExcel}
-            disabled={exporting || meetings.length === 0}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            disabled={exporting}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium disabled:opacity-50"
           >
-            {exporting ? (
-              <>
-                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <span>İndiriliyor...</span>
-              </>
-            ) : (
-              <>
-                <span>📥</span>
-                <span>Tümünü İndir (Excel)</span>
-              </>
-            )}
+            {exporting ? 'İndiriliyor...' : '📥 Excel İndir'}
           </button>
           <button
             onClick={() => setShowModal(true)}
@@ -265,44 +290,43 @@ const Meetings = () => {
       </div>
 
       {/* Meetings List */}
-      <div className="space-y-4">
+      <div className="grid gap-4">
         {meetings.map((meeting) => (
-          <div
-            key={meeting._id}
-            className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition"
-          >
+          <div key={meeting._id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-start justify-between">
+              {/* SOL TARAF */}
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
                   <h3 className="text-xl font-semibold text-gray-900">{meeting.title}</h3>
-                  {getStatusBadge(meeting.status)}
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    meeting.status === 'planned' ? 'bg-blue-100 text-blue-800' :
+                    meeting.status === 'completed' ? 'bg-green-100 text-green-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {meeting.status === 'planned' ? 'Planlandı' : meeting.status === 'completed' ? 'Tamamlandı' : 'İptal'}
+                  </span>
                 </div>
+
                 {meeting.description && (
-                  <p className="text-gray-600 mb-4">{meeting.description}</p>
+                  <p className="text-gray-600 mb-3">{meeting.description}</p>
                 )}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Tarih</p>
-                    <p className="text-sm font-medium text-gray-900">
-                      {new Date(meeting.date).toLocaleDateString('tr-TR')}
-                    </p>
+
+                <div className="flex flex-wrap gap-4 text-sm text-gray-600 mb-3">
+                  <div className="flex items-center gap-1">
+                    <span>📅</span>
+                    <span>{formatDate(meeting.date)}</span>
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Saat</p>
-                    <p className="text-sm font-medium text-gray-900">{meeting.time}</p>
+                  <div className="flex items-center gap-1">
+                    <span>🕐</span>
+                    <span>{meeting.time}</span>
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Yer</p>
-                    <p className="text-sm font-medium text-gray-900">{meeting.location}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Katılımcılar</p>
-                    <p className="text-sm font-medium text-gray-900">
-                      {meeting.participants.length} kişi
-                    </p>
+                  <div className="flex items-center gap-1">
+                    <span>📍</span>
+                    <span>{meeting.location}</span>
                   </div>
                 </div>
-                <div className="mt-4 flex flex-wrap gap-2">
+
+                <div className="flex flex-wrap gap-2">
                   {meeting.participants.map((participant) => (
                     <span
                       key={participant._id}
@@ -316,7 +340,6 @@ const Meetings = () => {
               
               {/* SAĞ TARAF - BUTONLAR */}
               <div className="flex flex-col gap-2 ml-4">
-                {/* CRUD Butonları */}
                 <div className="flex gap-2">
                   <button
                     onClick={() => navigate(`/meetings/${meeting._id}`)}
@@ -338,9 +361,7 @@ const Meetings = () => {
                   </button>
                 </div>
 
-                {/* 👇 YENİ: 2 İNDİRME BUTONU */}
                 <div className="border-t pt-2 mt-2 space-y-1">
-                  {/* 1. Yoklama Listesi Butonu */}
                   <button
                     onClick={() => handleExportAttendance(meeting._id)}
                     disabled={exportingId === meeting._id + '-attendance'}
@@ -362,11 +383,10 @@ const Meetings = () => {
                     )}
                   </button>
 
-                  {/* 2. Not Raporu Butonu */}
                   <button
                     onClick={() => handleExportNotes(meeting._id)}
                     disabled={exportingId === meeting._id + '-notes'}
-                    className="w-full px-3 py-2 text-xs bg-teal-600 text-white hover:bg-teal-700 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
+                    className="w-full px-3 py-2 text-xs bg-blue-600 text-white hover:bg-blue-700 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
                   >
                     {exportingId === meeting._id + '-notes' ? (
                       <>
@@ -379,7 +399,7 @@ const Meetings = () => {
                     ) : (
                       <>
                         <span>📄</span>
-                        <span>Not Raporu</span>
+                        <span>Toplantı Raporu</span>
                       </>
                     )}
                   </button>
@@ -388,29 +408,23 @@ const Meetings = () => {
             </div>
           </div>
         ))}
-
-        {meetings.length === 0 && (
-          <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
-            <p className="text-gray-500">Henüz toplantı oluşturulmamış</p>
-          </div>
-        )}
       </div>
 
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-semibold text-gray-900">
                 {editingMeeting ? 'Toplantıyı Düzenle' : 'Yeni Toplantı Oluştur'}
               </h3>
             </div>
-            
+
             <form onSubmit={handleSubmit} className="p-6">
-              <div className="space-y-4">
-                <div>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Başlık
+                    Başlık *
                   </label>
                   <input
                     type="text"
@@ -422,7 +436,7 @@ const Meetings = () => {
                   />
                 </div>
 
-                <div>
+                <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Açıklama
                   </label>
@@ -435,43 +449,14 @@ const Meetings = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tarih
-                    </label>
-                    <input
-                      type="date"
-                      name="date"
-                      value={formData.date}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Saat
-                    </label>
-                    <input
-                      type="time"
-                      name="time"
-                      value={formData.time}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      required
-                    />
-                  </div>
-                </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Yer
+                    Tarih *
                   </label>
                   <input
-                    type="text"
-                    name="location"
-                    value={formData.location}
+                    type="date"
+                    name="date"
+                    value={formData.date}
                     onChange={handleInputChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     required
@@ -479,27 +464,124 @@ const Meetings = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Katılımcılar
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Saat *
                   </label>
-                  <div className="border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto">
-                    {users.map((user) => (
-                      <label
-                        key={user._id}
-                        className="flex items-center space-x-2 py-2 hover:bg-gray-50 px-2 rounded cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={formData.participants.includes(user._id)}
-                          onChange={() => handleParticipantToggle(user._id)}
-                          className="rounded text-indigo-600 focus:ring-indigo-500"
-                        />
-                        <span className="text-sm text-gray-700">
-                          {user.firstName} {user.lastName} ({user.email})
-                        </span>
-                      </label>
-                    ))}
+                  <input
+                    type="time"
+                    name="time"
+                    value={formData.time}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Yer *
+                  </label>
+                  <input
+                    type="text"
+                    name="location"
+                    value={formData.location}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    placeholder="Toplantı odası, Zoom linki vb."
+                    required
+                  />
+                </div>
+
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Katılımcılar *
+                  </label>
+                  
+                  {/* Hızlı Seçim Butonları */}
+                  <div className="mb-3 space-y-2">
+                    <button
+                      type="button"
+                      onClick={handleSelectAll}
+                      className="w-full px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition font-medium"
+                    >
+                      {formData.participants.length === users.length ? '❌ Tümünü Kaldır' : '✅ Tümünü Seç'}
+                    </button>
+                    
+                    <div className="border border-gray-200 rounded-lg p-3 bg-blue-50">
+                      <p className="text-xs font-medium text-gray-700 mb-2">📁 Birim Bazında Hızlı Seçim:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {DEPARTMENTS.map((dept) => {
+                          const deptUsers = users.filter(u => u.departments && u.departments.includes(dept));
+                          const deptUserIds = deptUsers.map(u => u._id);
+                          const isAllSelected = deptUserIds.length > 0 && deptUserIds.every(id => formData.participants.includes(id));
+                          
+                          return (
+                            <button
+                              key={dept}
+                              type="button"
+                              onClick={() => handleDepartmentToggle(dept)}
+                              disabled={deptUsers.length === 0}
+                              className={`px-3 py-1 text-xs rounded-full font-medium transition ${
+                                isAllSelected
+                                  ? 'bg-green-500 text-white hover:bg-green-600'
+                                  : deptUsers.length === 0
+                                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                  : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
+                              }`}
+                            >
+                              {dept} ({deptUsers.length})
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
+                  
+                  {/* Kullanıcı Listesi */}
+                  <div className="border border-gray-300 rounded-lg p-3 max-h-64 overflow-y-auto bg-white">
+                    <div className="space-y-1">
+                      {users.map((user) => (
+                        <label
+                          key={user._id}
+                          className={`flex items-center justify-between p-2 hover:bg-gray-50 rounded cursor-pointer transition ${
+                            formData.participants.includes(user._id) ? 'bg-blue-50' : ''
+                          }`}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <input
+                              type="checkbox"
+                              checked={formData.participants.includes(user._id)}
+                              onChange={() => handleParticipantToggle(user._id)}
+                              className="rounded text-indigo-600 focus:ring-indigo-500"
+                            />
+                            <div>
+                              <span className="text-sm font-medium text-gray-700">
+                                {user.firstName} {user.lastName}
+                              </span>
+                              <p className="text-xs text-gray-500">{user.email}</p>
+                            </div>
+                          </div>
+                          
+                          {user.departments && user.departments.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {user.departments.map((dept, idx) => (
+                                <span
+                                  key={idx}
+                                  className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full"
+                                >
+                                  {dept}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <p className="text-xs text-gray-600 mt-2">
+                    ✅ {formData.participants.length} kullanıcı seçildi
+                  </p>
                 </div>
               </div>
 
