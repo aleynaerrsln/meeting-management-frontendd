@@ -10,13 +10,14 @@ const Profile = () => {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [notification, setNotification] = useState(null);
   const [profilePhotoUrl, setProfilePhotoUrl] = useState(null);
+  const [photoKey, setPhotoKey] = useState(Date.now()); // Cache busting için key
   
   const [profileData, setProfileData] = useState({
     firstName: '',
     lastName: '',
     email: '',
     role: '',
-    departments: [], // 🆕 Birimler
+    departments: [],
     lastLogin: '',
     createdAt: '',
     hasProfilePhoto: false
@@ -37,8 +38,14 @@ const Profile = () => {
       const response = await axiosInstance.get('/auth/profile');
       setProfileData(response.data);
       
+      // Her profil yüklenmesinde yeni bir key oluştur
+      const newKey = Date.now();
+      setPhotoKey(newKey);
+      
       if (response.data.hasProfilePhoto) {
-        setProfilePhotoUrl(`${axiosInstance.defaults.baseURL}/auth/profile-photo/${response.data._id}`);
+        setProfilePhotoUrl(`${axiosInstance.defaults.baseURL}/auth/profile-photo/${response.data._id}?t=${newKey}`);
+      } else {
+        setProfilePhotoUrl(null);
       }
     } catch (error) {
       console.error('Profil yüklenemedi:', error);
@@ -77,9 +84,17 @@ const Profile = () => {
       });
 
       showNotification('Profil fotoğrafı başarıyla yüklendi!', 'success');
-      await fetchProfile();
-      await checkAuth();
-      window.location.reload();
+      
+      // Yeni fotoğrafı hemen göster
+      const newKey = Date.now();
+      setPhotoKey(newKey);
+      
+      // Kısa bir gecikme sonrası profili yeniden yükle
+      setTimeout(async () => {
+        await fetchProfile();
+        await checkAuth();
+      }, 500);
+      
     } catch (error) {
       console.error('Fotoğraf yükleme hatası:', error);
       showNotification(
@@ -88,20 +103,32 @@ const Profile = () => {
       );
     } finally {
       setUploadingPhoto(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
   const handlePhotoDelete = async () => {
-    if (!confirm('Profil fotoğrafınızı silmek istediğinizden emin misiniz?')) {
+    if (!window.confirm('Profil fotoğrafınızı silmek istediğinizden emin misiniz?')) {
       return;
     }
 
     try {
       await axiosInstance.delete('/auth/profile-photo');
-      showNotification('Profil fotoğrafı silindi', 'success');
+      
+      // Önce fotoğrafı sil
       setProfilePhotoUrl(null);
-      await fetchProfile();
-      await checkAuth();
+      setPhotoKey(Date.now());
+      
+      showNotification('Profil fotoğrafı silindi', 'success');
+      
+      // Sonra profili güncelle
+      setTimeout(async () => {
+        await fetchProfile();
+        await checkAuth();
+      }, 300);
+      
     } catch (error) {
       console.error('Fotoğraf silme hatası:', error);
       showNotification('Fotoğraf silinemedi', 'error');
@@ -168,7 +195,6 @@ const Profile = () => {
 
   return (
     <div className="max-w-4xl mx-auto">
-      {/* Notification Modal */}
       {notification && (
         <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
           <div
@@ -203,7 +229,6 @@ const Profile = () => {
         </div>
       )}
 
-      {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Profil Ayarları</h1>
         <p className="text-gray-600 mt-2">
@@ -211,17 +236,21 @@ const Profile = () => {
         </p>
       </div>
 
-      {/* Profile Card */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6">
         <div className="px-6 py-8 border-b border-gray-200">
           <div className="flex items-center space-x-6">
-            {/* Avatar with Upload */}
             <div className="flex-shrink-0 relative group">
               {profilePhotoUrl ? (
                 <img
-                  src={profilePhotoUrl}
+                  key={photoKey}
+                  src={`${profilePhotoUrl}&_=${photoKey}`}
                   alt="Profil Fotoğrafı"
                   className="w-24 h-24 rounded-full object-cover border-4 border-gray-200"
+                  onError={(e) => {
+                    console.log('Fotoğraf yükleme hatası, varsayılana dönülüyor');
+                    e.target.style.display = 'none';
+                    setProfilePhotoUrl(null);
+                  }}
                 />
               ) : (
                 <div className="w-24 h-24 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-3xl font-bold">
@@ -248,14 +277,14 @@ const Profile = () => {
                 
                 {profilePhotoUrl && (
                   <button
-                    onClick={handlePhotoDelete}
-                    className="bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition shadow-lg"
-                    title="Fotoğrafı sil"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
+  onClick={handlePhotoDelete}
+  className="bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition shadow-lg"
+  title="Fotoğrafı sil"
+>
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+  </svg>
+</button>
                 )}
               </div>
               
@@ -268,7 +297,6 @@ const Profile = () => {
               />
             </div>
             
-            {/* User Info */}
             <div className="flex-1">
               <h2 className="text-2xl font-bold text-gray-900">
                 {profileData.firstName} {profileData.lastName}
@@ -279,7 +307,6 @@ const Profile = () => {
                   {getRoleName(profileData.role)}
                 </span>
                 
-                {/* 🆕 Birimler gösterimi */}
                 {profileData.departments && profileData.departments.length > 0 && (
                   profileData.departments.map((dept, idx) => (
                     <span
@@ -298,7 +325,6 @@ const Profile = () => {
           </div>
         </div>
 
-        {/* Tabs */}
         <div className="border-b border-gray-200">
           <nav className="flex space-x-8 px-6">
             <button
@@ -324,7 +350,6 @@ const Profile = () => {
           </nav>
         </div>
 
-        {/* Tab Content */}
         <div className="p-6">
           {activeTab === 'info' && (
             <div className="space-y-6">
@@ -357,7 +382,6 @@ const Profile = () => {
                   </div>
                 </div>
 
-                {/* 🆕 Birimler listesi */}
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Birimler</label>
                   <div className="px-4 py-3 bg-gray-50 rounded-lg border border-gray-200">

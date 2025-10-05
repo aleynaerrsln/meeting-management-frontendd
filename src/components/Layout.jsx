@@ -1,15 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import FloatingChatButton from './FloatingChatButton';
-import UserAvatar from './UserAvatar'; // 🆕 AVATAR COMPONENT
+import UserAvatar from './UserAvatar';
 
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [avatarKey, setAvatarKey] = useState(Date.now());
   const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // User değiştiğinde avatar'ı güncelle
+  useEffect(() => {
+    setAvatarKey(Date.now());
+  }, [user]);
 
   const handleLogout = () => {
     logout();
@@ -18,7 +24,6 @@ const Layout = ({ children }) => {
 
   const isActive = (path) => location.pathname === path;
 
-  // 🆕 Messages sayfasında padding olmasın
   const isMessagesPage = location.pathname === '/messages';
 
   const adminMenuItems = [
@@ -52,14 +57,12 @@ const Layout = ({ children }) => {
         <div className="h-16 px-6 flex items-center justify-between border-b border-gray-200 bg-gradient-to-r from-indigo-600 to-blue-600">
           {sidebarOpen && (
             <div className="flex items-center gap-3">
-              {/* 🆕 Logo */}
               <img 
-                src="/logo.png
-                " 
+                src="/logo.png" 
                 alt="Logo" 
                 className="w-10 h-10 object-contain rounded-lg bg-white p-1"
                 onError={(e) => {
-                  e.target.style.display = 'none'; // Logo yoksa gizle
+                  e.target.style.display = 'none';
                 }}
               />
               <h1 className="text-xl font-bold text-white">Toplantı Yönetim</h1>
@@ -67,8 +70,7 @@ const Layout = ({ children }) => {
           )}
           {!sidebarOpen && (
             <img 
-              src="/logo.png
-              " 
+              src="/logo.png" 
               alt="Logo" 
               className="w-10 h-10 object-contain rounded-lg bg-white p-1 mx-auto"
               onError={(e) => {
@@ -111,8 +113,7 @@ const Layout = ({ children }) => {
         <div className="px-4 py-4 border-t border-gray-200">
           {sidebarOpen ? (
             <div className="flex items-center space-x-3">
-              {/* 🆕 UserAvatar Component */}
-              <UserAvatar user={user} size="lg" />
+              <UserAvatar key={avatarKey} user={user} size="lg" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">
                   {user?.firstName} {user?.lastName}
@@ -129,8 +130,7 @@ const Layout = ({ children }) => {
             </div>
           ) : (
             <div className="flex justify-center">
-              {/* 🆕 UserAvatar Component - Küçük */}
-              <UserAvatar user={user} size="lg" />
+              <UserAvatar key={avatarKey} user={user} size="lg" />
             </div>
           )}
         </div>
@@ -151,8 +151,9 @@ const Layout = ({ children }) => {
             <div className="relative">
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium"
+                className="flex items-center gap-3 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium"
               >
+                <UserAvatar key={avatarKey} user={user} size="sm" />
                 <span>{user?.firstName}</span>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -186,7 +187,6 @@ const Layout = ({ children }) => {
 
         {/* Content Area */}
         <main className="flex-1 overflow-y-auto bg-gray-50">
-          {/* 🆕 Messages sayfasında padding yok, diğer sayfalarda var */}
           <div className={isMessagesPage ? '' : 'max-w-7xl mx-auto px-8 py-8'}>
             {children}
           </div>
@@ -201,7 +201,7 @@ const Layout = ({ children }) => {
         ></div>
       )}
 
-      {/* 🆕 Floating Chat Button - Sağ alt köşede sabit */}
+      {/* Floating Chat Button */}
       <FloatingChatButton />
     </div>
   );
