@@ -14,7 +14,8 @@ import Profile from './pages/Profile';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Sponsorships from './pages/Sponsorships';
-import Notifications from './pages/Notifications'; // 🆕 YENİ SAYFA
+import Notifications from './pages/Notifications';
+import Messages from './pages/Messages';
 
 function App() {
   return (
@@ -35,7 +36,8 @@ function App() {
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/work-reports" element={<WorkReports />} />
                     <Route path="/sponsorships" element={<Sponsorships />} />
-                    <Route path="/notifications" element={<Notifications />} /> {/* 🆕 YENİ ROUTE */}
+                    <Route path="/notifications" element={<Notifications />} />
+                    <Route path="/messages" element={<Messages />} /> {/* 🆕 MESSAGES ROUTE */}
 
                     {/* Admin Only Routes */}
                     <Route

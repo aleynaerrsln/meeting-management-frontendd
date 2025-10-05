@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
+import FloatingChatButton from './FloatingChatButton'; // 🆕 YENİ IMPORT
 
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -22,14 +23,16 @@ const Layout = ({ children }) => {
     { name: 'Kullanıcılar', path: '/users', icon: '👥' },
     { name: 'Toplantılar', path: '/meetings', icon: '📅' },
     { name: 'Çalışma Raporları', path: '/work-reports', icon: '📝' },
-    { name: 'Sponsorluklar', path: '/sponsorships', icon: '🤝' }, // 🆕 YENİ
+    { name: 'Sponsorluklar', path: '/sponsorships', icon: '🤝' },
+    { name: 'Mesajlar', path: '/messages', icon: '💬' }, // 🆕 MESAJLAR
   ];
 
   const userMenuItems = [
     { name: 'Dashboard', path: '/dashboard', icon: '📊' },
     { name: 'Toplantılarım', path: '/meetings', icon: '📅' },
     { name: 'Çalışma Raporlarım', path: '/work-reports', icon: '📝' },
-    { name: 'Sponsorluklar', path: '/sponsorships', icon: '🤝' }, // 🆕 YENİ
+    { name: 'Sponsorluklar', path: '/sponsorships', icon: '🤝' },
+    { name: 'Mesajlar', path: '/messages', icon: '💬' }, // 🆕 MESAJLAR
   ];
 
   const menuItems = isAdmin ? adminMenuItems : userMenuItems;
@@ -172,6 +175,9 @@ const Layout = ({ children }) => {
           onClick={() => setShowUserMenu(false)}
         ></div>
       )}
+
+      {/* 🆕 Floating Chat Button - Sağ alt köşede sabit */}
+      <FloatingChatButton />
     </div>
   );
 };

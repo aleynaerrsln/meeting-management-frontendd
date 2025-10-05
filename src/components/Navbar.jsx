@@ -9,16 +9,19 @@ const Navbar = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const notificationRef = useRef(null);
 
   useEffect(() => {
     if (user) {
       fetchNotifications();
       fetchUnreadCount();
+      fetchUnreadMessagesCount();
       
       // Her 30 saniyede bir bildirim kontrolü
       const interval = setInterval(() => {
         fetchUnreadCount();
+        fetchUnreadMessagesCount();
       }, 30000);
 
       return () => clearInterval(interval);
@@ -55,6 +58,15 @@ const Navbar = () => {
     }
   };
 
+  const fetchUnreadMessagesCount = async () => {
+    try {
+      const response = await axiosInstance.get('/messages/unread-count');
+      setUnreadMessagesCount(response.data.count);
+    } catch (error) {
+      console.error('Okunmamış mesaj sayısı hatası:', error);
+    }
+  };
+
   const handleNotificationClick = async (notification) => {
     try {
       // Bildirimi okundu yap
@@ -69,6 +81,8 @@ const Navbar = () => {
         navigate('/work-reports');
       } else if (notification.relatedMeeting) {
         navigate(`/meetings/${notification.relatedMeeting._id}`);
+      } else if (notification.relatedMessage) {
+        navigate('/messages');
       }
 
       setShowNotifications(false);
@@ -102,6 +116,8 @@ const Navbar = () => {
         return '📅';
       case 'meeting_updated':
         return '🔄';
+      case 'message_received':
+        return '💬';
       default:
         return '🔔';
     }
@@ -172,6 +188,18 @@ const Navbar = () => {
                   className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition"
                 >
                   Sponsorluklar
+                </Link>
+
+                <Link
+                  to="/messages"
+                  className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition relative"
+                >
+                  💬 Mesajlar
+                  {unreadMessagesCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                      {unreadMessagesCount > 9 ? '9+' : unreadMessagesCount}
+                    </span>
+                  )}
                 </Link>
 
                 {/* 🆕 BİLDİRİM İKONU */}
