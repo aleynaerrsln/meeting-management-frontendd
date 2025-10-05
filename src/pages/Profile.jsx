@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useNotification } from '../hooks/useNotification';
 import axiosInstance from '../api/axios';
 
 const Profile = () => {

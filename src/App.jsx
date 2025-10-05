@@ -1,38 +1,20 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
+
+// Pages
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
-import Profile from './pages/Profile';
 import Users from './pages/Users';
 import Meetings from './pages/Meetings';
 import MeetingDetail from './pages/MeetingDetail';
 import WorkReports from './pages/WorkReports';
-import Sponsorships from './pages/Sponsorships'; // 🆕 YENİ
+import Profile from './pages/Profile';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
-
-const ProtectedRoute = ({ children, adminOnly = false }) => {
-  const { isAuthenticated, isAdmin, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl text-gray-600">Yükleniyor...</div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" />;
-  }
-
-  if (adminOnly && !isAdmin) {
-    return <Navigate to="/dashboard" />;
-  }
-
-  return <Layout>{children}</Layout>;
-};
+import Sponsorships from './pages/Sponsorships';
+import Notifications from './pages/Notifications'; // 🆕 YENİ SAYFA
 
 function App() {
   return (
@@ -40,75 +22,56 @@ function App() {
       <Router>
         <Routes>
           <Route path="/login" element={<Login />} />
-          
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/profile"
-            element={
-              <ProtectedRoute>
-                <Profile />
-              </ProtectedRoute>
-            }
-          />
-          
-          <Route
-            path="/users"
-            element={
-              <ProtectedRoute adminOnly>
-                <Users />
-              </ProtectedRoute>
-            }
-          />
-          
-          <Route
-            path="/meetings"
-            element={
-              <ProtectedRoute adminOnly>
-                <Meetings />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/meetings/:id"
-            element={
-              <ProtectedRoute adminOnly>
-                <MeetingDetail />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/work-reports"
-            element={
-              <ProtectedRoute>
-                <WorkReports />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* 🆕 YENİ ROUTE: Sponsorluklar */}
-          <Route
-            path="/sponsorships"
-            element={
-              <ProtectedRoute>
-                <Sponsorships />
-              </ProtectedRoute>
-            }
-          />
-          
           <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password/:token" element={<ResetPassword />} />       
-          <Route path="/" element={<Navigate to="/dashboard" />} />
-          <Route path="*" element={<Navigate to="/login" />} />
+          <Route path="/reset-password/:token" element={<ResetPassword />} />
+
+          <Route
+            path="/*"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Routes>
+                    <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/profile" element={<Profile />} />
+                    <Route path="/work-reports" element={<WorkReports />} />
+                    <Route path="/sponsorships" element={<Sponsorships />} />
+                    <Route path="/notifications" element={<Notifications />} /> {/* 🆕 YENİ ROUTE */}
+
+                    {/* Admin Only Routes */}
+                    <Route
+                      path="/users"
+                      element={
+                        <ProtectedRoute adminOnly>
+                          <Users />
+                        </ProtectedRoute>
+                      }
+                    />
+
+                    <Route
+                      path="/meetings"
+                      element={
+                        <ProtectedRoute adminOnly>
+                          <Meetings />
+                        </ProtectedRoute>
+                      }
+                    />
+
+                    <Route
+                      path="/meetings/:id"
+                      element={
+                        <ProtectedRoute adminOnly>
+                          <MeetingDetail />
+                        </ProtectedRoute>
+                      }
+                    />
+
+                    <Route path="/" element={<Navigate to="/dashboard" />} />
+                    <Route path="*" element={<Navigate to="/dashboard" />} />
+                  </Routes>
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
         </Routes>
       </Router>
     </AuthProvider>
