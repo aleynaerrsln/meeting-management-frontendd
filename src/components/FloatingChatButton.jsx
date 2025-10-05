@@ -1,25 +1,59 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  Fab,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemAvatar,
+  ListItemText,
+  Avatar,
+  Badge,
+  TextField,
+  InputAdornment,
+  IconButton,
+  Typography,
+  Box,
+  Slide,
+  useMediaQuery,
+  useTheme,
+  Chip
+} from '@mui/material';
+import {
+  Chat as ChatIcon,
+  Close as CloseIcon,
+  Search as SearchIcon,
+  Send as SendIcon,
+  AdminPanelSettings as AdminIcon,
+  Person as PersonIcon
+} from '@mui/icons-material';
 import axiosInstance from '../utils/axios';
-import UserAvatar from './UserAvatar'; // 🆕 AVATAR COMPONENT
+
+const Transition = React.forwardRef(function Transition(props, ref) {
+  return <Slide direction="up" ref={ref} {...props} />;
+});
 
 const FloatingChatButton = () => {
   const navigate = useNavigate();
-  const [showMenu, setShowMenu] = useState(false);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const [open, setOpen] = useState(false);
   const [users, setUsers] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [unreadByUser, setUnreadByUser] = useState({}); // 🆕 Her kullanıcıdan okunmamış
+  const [unreadByUser, setUnreadByUser] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     fetchUsers();
     fetchUnreadCount();
-    fetchUnreadByUser(); // 🆕
+    fetchUnreadByUser();
 
-    // Her 30 saniyede bir okunmamış mesaj kontrolü
     const interval = setInterval(() => {
       fetchUnreadCount();
-      fetchUnreadByUser(); // 🆕
+      fetchUnreadByUser();
     }, 30000);
 
     return () => clearInterval(interval);
@@ -43,7 +77,6 @@ const FloatingChatButton = () => {
     }
   };
 
-  // 🆕 Kullanıcı bazlı okunmamış sayısı
   const fetchUnreadByUser = async () => {
     try {
       const response = await axiosInstance.get('/messages/unread-by-user');
@@ -58,145 +91,248 @@ const FloatingChatButton = () => {
   };
 
   const handleUserClick = (userId) => {
-    // Mesajlar sayfasına yönlendir ve kullanıcıyı seç
     navigate('/messages', { state: { selectedUserId: userId } });
-    setShowMenu(false);
+    setOpen(false);
   };
 
   const filteredUsers = users.filter(user =>
     `${user.firstName} ${user.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const getInitials = (firstName, lastName) => {
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+  };
+
+  const getAvatarColor = (name) => {
+    const colors = [
+      '#1976d2', '#dc004e', '#9c27b0', '#f57c00', 
+      '#388e3c', '#d32f2f', '#0288d1', '#7b1fa2'
+    ];
+    const index = name.charCodeAt(0) % colors.length;
+    return colors[index];
+  };
+
   return (
     <>
-      {/* Floating Button */}
-      <div className="fixed bottom-6 right-6 z-50">
-        {/* Ana Buton */}
-        <button
-          onClick={() => setShowMenu(!showMenu)}
-          className="relative w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 flex items-center justify-center group"
+      {/* Floating Action Button */}
+      <Fab
+        color="primary"
+        aria-label="chat"
+        onClick={() => setOpen(true)}
+        sx={{
+          position: 'fixed',
+          bottom: { xs: 16, sm: 24 },
+          right: { xs: 16, sm: 24 },
+          zIndex: 1000,
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          '&:hover': {
+            background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
+            transform: 'scale(1.1)',
+          },
+          transition: 'all 0.3s ease'
+        }}
+      >
+        <Badge badgeContent={unreadCount} color="error" max={9}>
+          <ChatIcon />
+        </Badge>
+      </Fab>
+
+      {/* Dialog */}
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        TransitionComponent={Transition}
+        fullScreen={isMobile}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: isMobile ? 0 : 3,
+            maxHeight: isMobile ? '100vh' : '80vh'
+          }
+        }}
+      >
+        {/* Header */}
+        <DialogTitle
+          sx={{
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            py: 2
+          }}
         >
-          <span className="text-2xl group-hover:scale-110 transition-transform">💬</span>
-          {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold animate-pulse shadow-lg">
-              {unreadCount > 9 ? '9+' : unreadCount}
-            </span>
-          )}
-        </button>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <ChatIcon />
+            <Typography variant="h6" component="div" fontWeight="bold">
+              Yeni Sohbet
+            </Typography>
+          </Box>
+          <IconButton
+            edge="end"
+            color="inherit"
+            onClick={() => setOpen(false)}
+            aria-label="close"
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
 
-        {/* Kullanıcı Listesi Popup */}
-        {showMenu && (
-          <div className="absolute bottom-20 right-0 w-96 bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden animate-fadeIn">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-5 py-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-bold text-lg flex items-center gap-2">
-                  <span>💬</span>
-                  <span>Yeni Sohbet</span>
-                </h3>
-                <button
-                  onClick={() => setShowMenu(false)}
-                  className="text-white hover:text-gray-200 w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/20 transition"
+        {/* Search */}
+        <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Kişi ara..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon color="action" />
+                </InputAdornment>
+              ),
+            }}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 2,
+              }
+            }}
+          />
+        </Box>
+
+        {/* User List */}
+        <DialogContent sx={{ p: 0 }}>
+          {filteredUsers.length === 0 ? (
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                py: 8,
+                px: 2
+              }}
+            >
+              <SearchIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
+              <Typography variant="body1" color="text.secondary">
+                Kullanıcı bulunamadı
+              </Typography>
+            </Box>
+          ) : (
+            <List sx={{ py: 0 }}>
+              {filteredUsers.map((user, index) => (
+                <ListItem
+                  key={user._id}
+                  disablePadding
+                  sx={{
+                    borderBottom: index !== filteredUsers.length - 1 ? 1 : 0,
+                    borderColor: 'divider'
+                  }}
                 >
-                  ✕
-                </button>
-              </div>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="🔍 Kişi ara..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 rounded-lg text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-white/50"
-                />
-                <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-            </div>
-
-            {/* Kullanıcı Listesi */}
-            <div className="max-h-96 overflow-y-auto">
-              {filteredUsers.length === 0 ? (
-                <div className="p-8 text-center text-gray-500">
-                  <div className="text-5xl mb-3">🔍</div>
-                  <p className="text-sm font-medium">Kullanıcı bulunamadı</p>
-                </div>
-              ) : (
-                filteredUsers.map((user) => (
-                  <div
-                    key={user._id}
+                  <ListItemButton
                     onClick={() => handleUserClick(user._id)}
-                    className="px-5 py-4 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 cursor-pointer transition-all border-b border-gray-100 last:border-0 group"
+                    sx={{
+                      py: 2,
+                      px: 3,
+                      '&:hover': {
+                        backgroundColor: 'rgba(102, 126, 234, 0.08)',
+                      }
+                    }}
                   >
-                    <div className="flex items-center gap-3">
-                      {/* Avatar */}
-                      <div className="relative">
-                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold shadow-md group-hover:scale-110 transition-transform">
-                          {user.firstName.charAt(0)}{user.lastName.charAt(0)}
-                        </div>
-                        {/* 🆕 Okunmamış badge */}
-                        {unreadByUser[user._id] > 0 && (
-                          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold animate-pulse shadow-lg">
-                            {unreadByUser[user._id] > 9 ? '9+' : unreadByUser[user._id]}
-                          </span>
-                        )}
-                      </div>
-                      
-                      {/* Kullanıcı Bilgisi */}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-gray-900 truncate group-hover:text-blue-600 transition">
+                    <ListItemAvatar>
+                      <Badge
+                        badgeContent={unreadByUser[user._id] || 0}
+                        color="error"
+                        max={9}
+                        overlap="circular"
+                      >
+                        <Avatar
+                          sx={{
+                            bgcolor: getAvatarColor(user.firstName),
+                            width: 48,
+                            height: 48,
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          {getInitials(user.firstName, user.lastName)}
+                        </Avatar>
+                      </Badge>
+                    </ListItemAvatar>
+
+                    <ListItemText
+                      primary={
+                        <Typography variant="subtitle1" fontWeight={600}>
                           {user.firstName} {user.lastName}
-                        </p>
-                        <p className="text-xs text-gray-500 flex items-center gap-1">
+                        </Typography>
+                      }
+                      secondary={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
                           {user.role === 'admin' ? (
                             <>
-                              <span className="text-purple-600">👑</span>
-                              <span>Yönetici</span>
+                              <AdminIcon sx={{ fontSize: 16, color: 'purple' }} />
+                              <Typography variant="caption" color="text.secondary">
+                                Yönetici
+                              </Typography>
                             </>
                           ) : (
                             <>
-                              <span className="text-blue-600">👤</span>
-                              <span>Kullanıcı</span>
+                              <PersonIcon sx={{ fontSize: 16, color: 'primary.main' }} />
+                              <Typography variant="caption" color="text.secondary">
+                                Kullanıcı
+                              </Typography>
                             </>
                           )}
-                        </p>
-                      </div>
-                      
-                      {/* Sağ ok */}
-                      <svg className="w-5 h-5 text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+                        </Box>
+                      }
+                    />
+                  </ListItemButton>
+                </ListItem>
+              ))}
+            </List>
+          )}
+        </DialogContent>
 
-            {/* Footer */}
-            <div className="border-t border-gray-200 p-4 bg-gradient-to-r from-gray-50 to-white">
-              <button
-                onClick={() => {
-                  navigate('/messages');
-                  setShowMenu(false);
-                }}
-                className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all text-sm font-medium shadow-md hover:shadow-lg transform hover:scale-105 flex items-center justify-center gap-2"
-              >
-                <span>📥</span>
-                <span>Tüm Mesajları Görüntüle</span>
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Overlay - Menü dışına tıklanınca kapat */}
-      {showMenu && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={() => setShowMenu(false)}
-        ></div>
-      )}
+        {/* Footer Button */}
+        <Box
+          sx={{
+            p: 2,
+            borderTop: 1,
+            borderColor: 'divider',
+            backgroundColor: 'grey.50'
+          }}
+        >
+          <Box
+            onClick={() => {
+              navigate('/messages');
+              setOpen(false);
+            }}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 1,
+              py: 1.5,
+              px: 2,
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: 'white',
+              borderRadius: 2,
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                transform: 'scale(1.02)',
+                boxShadow: 3
+              }
+            }}
+          >
+            <SendIcon />
+            <Typography variant="body2" fontWeight={600}>
+              Tüm Mesajları Görüntüle
+            </Typography>
+          </Box>
+        </Box>
+      </Dialog>
     </>
   );
 };

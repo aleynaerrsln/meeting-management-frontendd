@@ -1,31 +1,22 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axiosInstance from '../utils/axios';
 
 const WorkReports = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const isAdmin = user?.role === 'admin';
 
   const [reports, setReports] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
-  const [showModal, setShowModal] = useState(false);
-  const [editingReport, setEditingReport] = useState(null);
   
   // 🆕 Red modal state'leri
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectingReport, setRejectingReport] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
-  
-  const [formData, setFormData] = useState({
-    date: new Date().toISOString().split('T')[0],
-    workDescription: '',
-    startTime: '',
-    endTime: '',
-    project: '',
-    notes: ''
-  });
 
   const [filters, setFilters] = useState({
     userId: '',
@@ -98,39 +89,6 @@ const WorkReports = () => {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    try {
-      if (editingReport) {
-        await axiosInstance.put(`/work-reports/${editingReport._id}`, formData);
-        alert('Rapor güncellendi!');
-      } else {
-        await axiosInstance.post('/work-reports', formData);
-        alert('Rapor oluşturuldu!');
-      }
-      
-      handleCloseModal();
-      fetchReports();
-    } catch (error) {
-      console.error('Form gönderme hatası:', error);
-      alert(error.response?.data?.message || 'İşlem başarısız');
-    }
-  };
-
-  const handleEdit = (report) => {
-    setEditingReport(report);
-    setFormData({
-      date: report.date.split('T')[0],
-      workDescription: report.workDescription,
-      startTime: report.startTime,
-      endTime: report.endTime,
-      project: report.project || '',
-      notes: report.notes || ''
-    });
-    setShowModal(true);
-  };
-
   const handleDelete = async (id) => {
     if (!window.confirm('Bu raporu silmek istediğinizden emin misiniz?')) return;
 
@@ -186,23 +144,6 @@ const WorkReports = () => {
       console.error('Red işlemi hatası:', error);
       alert('Rapor reddedilemedi');
     }
-  };
-
-  const resetForm = () => {
-    setFormData({
-      date: new Date().toISOString().split('T')[0],
-      workDescription: '',
-      startTime: '',
-      endTime: '',
-      project: '',
-      notes: ''
-    });
-    setEditingReport(null);
-  };
-
-  const handleCloseModal = () => {
-    setShowModal(false);
-    resetForm();
   };
 
   const getStatusBadge = (status) => {
@@ -261,9 +202,10 @@ const WorkReports = () => {
             {exporting ? '📥 İndiriliyor...' : '📊 Excel İndir'}
           </button>
           
+          {/* 🆕 Yeni Rapor butonu - Ayrı sayfaya yönlendirir */}
           {!isAdmin && (
             <button
-              onClick={() => setShowModal(true)}
+              onClick={() => navigate('/work-reports/create')}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
             >
               + Yeni Rapor
@@ -286,7 +228,7 @@ const WorkReports = () => {
                 <option value="">Tüm Kullanıcılar</option>
                 {users.map(u => (
                   <option key={u._id} value={u._id}>
-                    {u.firstName} {u.lastName}
+                    {u?.firstName} {u.lastName}
                   </option>
                 ))}
               </select>
@@ -425,22 +367,30 @@ const WorkReports = () => {
                     </td>
                     {isAdmin && (
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {report.user.firstName} {report.user.lastName}
+                        {report?.user?.firstName} {report?.user?.lastName}
                       </td>
                     )}
                     <td className="px-6 py-4 text-sm text-gray-900">
-                      <div className="max-w-xs truncate">{report.workDescription}</div>
-                      {report.project && (
-                        <div className="text-xs text-gray-500 mt-1">
-                          Proje: {report.project}
-                        </div>
-                      )}
-                      {/* 🆕 Red sebebi gösterimi */}
-                      {report.rejectionReason && (
-                        <div className="text-xs text-red-600 mt-2 bg-red-50 p-2 rounded border border-red-200">
-                          <strong>❌ Red Sebebi:</strong> {report.rejectionReason}
-                        </div>
-                      )}
+                      <div className="max-w-xs">
+                        <div className="truncate">{report.workDescription}</div>
+                        {report.project && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            📁 Proje: {report.project}
+                          </div>
+                        )}
+                        {/* 🆕 Dosya eki gösterimi */}
+                        {report.attachmentCount > 0 && (
+                          <div className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                            📎 {report.attachmentCount} dosya eki
+                          </div>
+                        )}
+                        {/* Red sebebi gösterimi */}
+                        {report.rejectionReason && (
+                          <div className="text-xs text-red-600 mt-2 bg-red-50 p-2 rounded border border-red-200">
+                            <strong>❌ Red Sebebi:</strong> {report.rejectionReason}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {report.startTime} - {report.endTime}
@@ -453,6 +403,15 @@ const WorkReports = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <div className="flex items-center gap-2">
+                        {/* 🆕 Detay butonu - Tüm kullanıcılar için */}
+                        <button
+                          onClick={() => navigate(`/work-reports/${report._id}`)}
+                          className="text-blue-600 hover:text-blue-800"
+                          title="Detayları Gör"
+                        >
+                          👁️
+                        </button>
+
                         {isAdmin ? (
                           <>
                             {report.status !== 'approved' && (
@@ -484,7 +443,7 @@ const WorkReports = () => {
                         ) : (
                           <>
                             <button
-                              onClick={() => handleEdit(report)}
+                              onClick={() => navigate(`/work-reports/${report._id}/edit`)}
                               className="text-blue-600 hover:text-blue-800"
                               title="Düzenle"
                             >
@@ -508,118 +467,6 @@ const WorkReports = () => {
           </table>
         </div>
       </div>
-
-      {/* Rapor Oluşturma/Düzenleme Modalı */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">
-                {editingReport ? 'Raporu Düzenle' : 'Yeni Rapor Oluştur'}
-              </h3>
-            </div>
-
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tarih
-                </label>
-                <input
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Çalışma Açıklaması
-                </label>
-                <textarea
-                  value={formData.workDescription}
-                  onChange={(e) => setFormData({ ...formData, workDescription: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  rows="3"
-                  placeholder="Ne üzerinde çalıştınız?"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Başlangıç Saati
-                  </label>
-                  <input
-                    type="time"
-                    value={formData.startTime}
-                    onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Bitiş Saati
-                  </label>
-                  <input
-                    type="time"
-                    value={formData.endTime}
-                    onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Proje (Opsiyonel)
-                </label>
-                <input
-                  type="text"
-                  value={formData.project}
-                  onChange={(e) => setFormData({ ...formData, project: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="Proje adı"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Notlar (Opsiyonel)
-                </label>
-                <textarea
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  rows="2"
-                  placeholder="Ek notlar..."
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={handleCloseModal}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
-                >
-                  İptal
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                >
-                  {editingReport ? 'Güncelle' : 'Oluştur'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* 🆕 Red Sebebi Modalı */}
       {showRejectModal && (

@@ -301,7 +301,7 @@ const Sponsorships = () => {
                     📧 {sponsorship.companyEmail}
                   </p>
                   <p className="text-sm text-gray-500">
-                    👤 Oluşturan: {sponsorship.createdBy.firstName} {sponsorship.createdBy.lastName}
+                    👤 Oluşturan: {sponsorship?.createdBy?.firstName} {sponsorship?.createdBy?.lastName}
                   </p>
                 </div>
                 <div className="flex gap-2">

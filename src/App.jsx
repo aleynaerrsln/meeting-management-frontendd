@@ -10,6 +10,9 @@ import Users from './pages/Users';
 import Meetings from './pages/Meetings';
 import MeetingDetail from './pages/MeetingDetail';
 import WorkReports from './pages/WorkReports';
+import CreateWorkReport from './pages/CreateWorkReport'; // 🆕 YENİ EKLENEN
+import EditWorkReport from './pages/EditWorkReport'; // 🆕 YENİ EKLENEN
+import WorkReportDetail from './pages/WorkReportDetail'; // 🆕 YENİ EKLENEN
 import Profile from './pages/Profile';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
@@ -34,10 +37,16 @@ function App() {
                   <Routes>
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/profile" element={<Profile />} />
+                    
+                    {/* 🆕 Work Reports Routes - Yeni Eklenen */}
                     <Route path="/work-reports" element={<WorkReports />} />
+                    <Route path="/work-reports/create" element={<CreateWorkReport />} />
+                    <Route path="/work-reports/:id" element={<WorkReportDetail />} />
+                    <Route path="/work-reports/:id/edit" element={<EditWorkReport />} />
+                    
                     <Route path="/sponsorships" element={<Sponsorships />} />
                     <Route path="/notifications" element={<Notifications />} />
-                    <Route path="/messages" element={<Messages />} /> {/* 🆕 MESSAGES ROUTE */}
+                    <Route path="/messages" element={<Messages />} />
 
                     {/* Admin Only Routes */}
                     <Route

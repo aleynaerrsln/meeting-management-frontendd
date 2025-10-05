@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'http://192.168.1.4:5000/api';
+const API_URL = 'https://backendspectraloop.com.tr/api';
 
 const axiosInstance = axios.create({
   baseURL: API_URL,
