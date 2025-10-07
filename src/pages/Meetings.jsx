@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axiosInstance from '../api/axios';
+import axiosInstance from '../utils/axios'; // ✅ utils/axios kullanılıyor
 
 const DEPARTMENTS = [
   'Yazılım Birimi',
@@ -20,6 +20,8 @@ const Meetings = () => {
   const [editingMeeting, setEditingMeeting] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [exportingId, setExportingId] = useState(null);
+  const [submitting, setSubmitting] = useState(false); // 🆕 Form gönderim durumu
+  const [notification, setNotification] = useState(null); // 🆕 Modern bildirim
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -34,12 +36,19 @@ const Meetings = () => {
     fetchUsers();
   }, []);
 
+  // 🆕 Modern bildirim gösterme
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 4000);
+  };
+
   const fetchMeetings = async () => {
     try {
       const response = await axiosInstance.get('/meetings');
       setMeetings(response.data.data || []);
     } catch (error) {
       console.error('Toplantılar yüklenemedi:', error);
+      showNotification('Toplantılar yüklenemedi', 'error');
     } finally {
       setLoading(false);
     }
@@ -70,10 +79,10 @@ const Meetings = () => {
       link.remove();
       window.URL.revokeObjectURL(url);
 
-      alert('✅ Tüm toplantılar Excel dosyası olarak indirildi!');
+      showNotification('✅ Tüm toplantılar Excel dosyası olarak indirildi!', 'success');
     } catch (error) {
       console.error('Excel export hatası:', error);
-      alert('❌ Excel dosyası indirilemedi');
+      showNotification('❌ Excel dosyası indirilemedi', 'error');
     } finally {
       setExporting(false);
     }
@@ -95,10 +104,10 @@ const Meetings = () => {
       link.remove();
       window.URL.revokeObjectURL(url);
 
-      alert('✅ Yoklama listesi başarıyla indirildi!');
+      showNotification('✅ Yoklama listesi başarıyla indirildi!', 'success');
     } catch (error) {
       console.error('Yoklama export hatası:', error);
-      alert('❌ Yoklama listesi indirilemedi');
+      showNotification('❌ Yoklama listesi indirilemedi', 'error');
     } finally {
       setExportingId(null);
     }
@@ -120,10 +129,10 @@ const Meetings = () => {
       link.remove();
       window.URL.revokeObjectURL(url);
 
-      alert('✅ Toplantı raporu başarıyla indirildi!');
+      showNotification('✅ Toplantı raporu başarıyla indirildi!', 'success');
     } catch (error) {
       console.error('Rapor export hatası:', error);
-      alert('❌ Toplantı raporu indirilemedi');
+      showNotification('❌ Toplantı raporu indirilemedi', 'error');
     } finally {
       setExportingId(null);
     }
@@ -146,7 +155,6 @@ const Meetings = () => {
     }));
   };
 
-  // Birim bazında toplu seçim
   const handleDepartmentToggle = (department) => {
     const departmentUsers = users.filter(user => 
       user.departments && user.departments.includes(department)
@@ -176,7 +184,6 @@ const Meetings = () => {
     });
   };
 
-  // Tümünü seç/kaldır
   const handleSelectAll = () => {
     if (formData.participants.length === users.length) {
       setFormData(prev => ({ ...prev, participants: [] }));
@@ -191,19 +198,33 @@ const Meetings = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // ✅ Validation
+    if (formData.participants.length === 0) {
+      showNotification('⚠️ En az bir katılımcı seçmelisiniz!', 'error');
+      return;
+    }
+
+    setSubmitting(true); // ✅ Loading durumu başlat
+
     try {
       if (editingMeeting) {
         await axiosInstance.put(`/meetings/${editingMeeting._id}`, formData);
+        showNotification('✅ Toplantı başarıyla güncellendi!', 'success');
       } else {
-        await axiosInstance.post('/meetings', formData);
+        const response = await axiosInstance.post('/meetings', formData);
+        showNotification('✅ Toplantı başarıyla oluşturuldu!', 'success');
+        
+        // ✅ Yeni oluşturulan toplantının detay sayfasına yönlendir (opsiyonel)
+        // setTimeout(() => navigate(`/meetings/${response.data.meeting._id}`), 1500);
       }
 
-      fetchMeetings();
+      await fetchMeetings(); // ✅ Listeyi yenile
       handleCloseModal();
-      alert(editingMeeting ? 'Toplantı güncellendi!' : 'Toplantı oluşturuldu!');
     } catch (error) {
       console.error('İşlem başarısız:', error);
-      alert(error.response?.data?.message || 'Bir hata oluştu');
+      showNotification(error.response?.data?.message || '❌ Bir hata oluştu', 'error');
+    } finally {
+      setSubmitting(false); // ✅ Loading durumu bitir
     }
   };
 
@@ -228,10 +249,10 @@ const Meetings = () => {
     try {
       await axiosInstance.delete(`/meetings/${id}`);
       fetchMeetings();
-      alert('Toplantı silindi!');
+      showNotification('🗑️ Toplantı silindi!', 'success');
     } catch (error) {
       console.error('Silme işlemi başarısız:', error);
-      alert(error.response?.data?.message || 'Toplantı silinemedi');
+      showNotification(error.response?.data?.message || 'Toplantı silinemedi', 'error');
     }
   };
 
@@ -266,6 +287,55 @@ const Meetings = () => {
 
   return (
     <div>
+      {/* 🆕 Modern Bildirim */}
+      {notification && (
+        <div className="fixed top-4 right-4 z-50 animate-slide-in-right">
+          <div
+            className={`rounded-lg shadow-lg p-4 min-w-[300px] max-w-md ${
+              notification.type === 'success'
+                ? 'bg-green-50 border border-green-200'
+                : notification.type === 'error'
+                ? 'bg-red-50 border border-red-200'
+                : 'bg-yellow-50 border border-yellow-200'
+            }`}
+          >
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                {notification.type === 'success' ? (
+                  <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                ) : notification.type === 'error' ? (
+                  <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                ) : (
+                  <svg className="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                )}
+              </div>
+              <div className="ml-3 flex-1">
+                <p className={`text-sm font-medium ${
+                  notification.type === 'success' ? 'text-green-800' : 
+                  notification.type === 'error' ? 'text-red-800' : 'text-yellow-800'
+                }`}>
+                  {notification.message}
+                </p>
+              </div>
+              <button
+                onClick={() => setNotification(null)}
+                className="ml-4 flex-shrink-0 inline-flex text-gray-400 hover:text-gray-500"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -276,9 +346,22 @@ const Meetings = () => {
           <button
             onClick={handleExportExcel}
             disabled={exporting}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium disabled:opacity-50"
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium disabled:opacity-50 flex items-center gap-2"
           >
-            {exporting ? 'İndiriliyor...' : '📥 Excel İndir'}
+            {exporting ? (
+              <>
+                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>İndiriliyor...</span>
+              </>
+            ) : (
+              <>
+                <span>📊</span>
+                <span>Excel İndir</span>
+              </>
+            )}
           </button>
           <button
             onClick={() => setShowModal(true)}
@@ -289,83 +372,74 @@ const Meetings = () => {
         </div>
       </div>
 
-      {/* Meetings List */}
-      <div className="grid gap-4">
+      {/* Meetings Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {meetings.map((meeting) => (
-          <div key={meeting._id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <div className="flex items-start justify-between">
-              {/* SOL TARAF */}
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <h3 className="text-xl font-semibold text-gray-900">{meeting.title}</h3>
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    meeting.status === 'planned' ? 'bg-blue-100 text-blue-800' :
-                    meeting.status === 'completed' ? 'bg-green-100 text-green-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {meeting.status === 'planned' ? 'Planlandı' : meeting.status === 'completed' ? 'Tamamlandı' : 'İptal'}
-                  </span>
+          <div key={meeting._id} className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition">
+            <div className="p-6">
+              <div className="flex items-start justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 flex-1">{meeting.title}</h3>
+                <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                  meeting.status === 'completed' ? 'bg-green-100 text-green-800' :
+                  meeting.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                  'bg-blue-100 text-blue-800'
+                }`}>
+                  {meeting.status === 'completed' ? 'Tamamlandı' :
+                   meeting.status === 'cancelled' ? 'İptal' : 'Planlandı'}
+                </span>
+              </div>
+
+              {meeting.description && (
+                <p className="text-sm text-gray-600 mb-4 line-clamp-2">{meeting.description}</p>
+              )}
+
+              <div className="space-y-2 mb-4">
+                <div className="flex items-center text-sm text-gray-600">
+                  <span className="mr-2">📅</span>
+                  <span>{formatDate(meeting.date)}</span>
                 </div>
-
-                {meeting.description && (
-                  <p className="text-gray-600 mb-3">{meeting.description}</p>
-                )}
-
-                <div className="flex flex-wrap gap-4 text-sm text-gray-600 mb-3">
-                  <div className="flex items-center gap-1">
-                    <span>📅</span>
-                    <span>{formatDate(meeting.date)}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span>🕐</span>
-                    <span>{meeting.time}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span>📍</span>
-                    <span>{meeting.location}</span>
-                  </div>
+                <div className="flex items-center text-sm text-gray-600">
+                  <span className="mr-2">🕐</span>
+                  <span>{meeting.time}</span>
                 </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {meeting.participants.map((participant) => (
-                    <span
-                      key={participant._id}
-                      className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs"
-                    >
-                      {participant.firstName} {participant.lastName}
-                    </span>
-                  ))}
+                <div className="flex items-center text-sm text-gray-600">
+                  <span className="mr-2">📍</span>
+                  <span>{meeting.location}</span>
+                </div>
+                <div className="flex items-center text-sm text-gray-600">
+                  <span className="mr-2">👥</span>
+                  <span>{meeting.participants?.length || 0} Katılımcı</span>
                 </div>
               </div>
-              
-              {/* SAĞ TARAF - BUTONLAR */}
-              <div className="flex flex-col gap-2 ml-4">
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => navigate(`/meetings/${meeting._id}`)}
-                    className="px-3 py-1 text-sm text-green-600 hover:bg-green-50 rounded"
-                  >
-                    Detay
-                  </button>
-                  <button
-                    onClick={() => handleEdit(meeting)}
-                    className="px-3 py-1 text-sm text-indigo-600 hover:bg-indigo-50 rounded"
-                  >
-                    Düzenle
-                  </button>
-                  <button
-                    onClick={() => handleDelete(meeting._id)}
-                    className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded"
-                  >
-                    Sil
-                  </button>
-                </div>
 
-                <div className="border-t pt-2 mt-2 space-y-1">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => navigate(`/meetings/${meeting._id}`)}
+                  className="flex-1 px-3 py-2 text-sm bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg transition"
+                >
+                  Detaylar
+                </button>
+                <button
+                  onClick={() => handleEdit(meeting)}
+                  className="px-3 py-2 text-sm text-indigo-600 hover:bg-indigo-50 rounded-lg transition border border-indigo-600"
+                >
+                  Düzenle
+                </button>
+                <button
+                  onClick={() => handleDelete(meeting._id)}
+                  className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition border border-red-600"
+                >
+                  Sil
+                </button>
+              </div>
+
+              {/* Export Butonları */}
+              {meeting.status !== 'cancelled' && (
+                <div className="mt-3 grid grid-cols-2 gap-2">
                   <button
                     onClick={() => handleExportAttendance(meeting._id)}
                     disabled={exportingId === meeting._id + '-attendance'}
-                    className="w-full px-3 py-2 text-xs bg-purple-600 text-white hover:bg-purple-700 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
+                    className="w-full px-3 py-2 text-xs bg-green-600 text-white hover:bg-green-700 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
                   >
                     {exportingId === meeting._id + '-attendance' ? (
                       <>
@@ -378,7 +452,7 @@ const Meetings = () => {
                     ) : (
                       <>
                         <span>📋</span>
-                        <span>Yoklama Listesi</span>
+                        <span>Yoklama</span>
                       </>
                     )}
                   </button>
@@ -399,12 +473,12 @@ const Meetings = () => {
                     ) : (
                       <>
                         <span>📄</span>
-                        <span>Toplantı Raporu</span>
+                        <span>Rapor</span>
                       </>
                     )}
                   </button>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         ))}
@@ -414,196 +488,213 @@ const Meetings = () => {
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="px-6 py-4 border-b border-gray-200">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900">
                 {editingMeeting ? 'Toplantıyı Düzenle' : 'Yeni Toplantı Oluştur'}
               </h3>
+              {submitting && (
+                <div className="flex items-center gap-2 text-indigo-600">
+                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span className="text-sm">Kaydediliyor...</span>
+                </div>
+              )}
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6">
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Başlık *
-                  </label>
-                  <input
-                    type="text"
-                    name="title"
-                    value={formData.title}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    required
-                  />
-                </div>
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Toplantı Başlığı *</label>
+                <input
+                  type="text"
+                  name="title"
+                  value={formData.title}
+                  onChange={handleInputChange}
+                  required
+                  disabled={submitting}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100"
+                  placeholder="Örn: Haftalık Ekip Toplantısı"
+                />
+              </div>
 
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Açıklama
-                  </label>
-                  <textarea
-                    name="description"
-                    value={formData.description}
-                    onChange={handleInputChange}
-                    rows="3"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Açıklama</label>
+                <textarea
+                  name="description"
+                  value={formData.description}
+                  onChange={handleInputChange}
+                  disabled={submitting}
+                  rows="3"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100"
+                  placeholder="Toplantı hakkında detaylar..."
+                />
+              </div>
 
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tarih *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tarih *</label>
                   <input
                     type="date"
                     name="date"
                     value={formData.date}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     required
+                    disabled={submitting}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Saat *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Saat *</label>
                   <input
                     type="time"
                     name="time"
                     value={formData.time}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     required
+                    disabled={submitting}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100"
                   />
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Yer *
-                  </label>
-                  <input
-                    type="text"
-                    name="location"
-                    value={formData.location}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="Toplantı odası, Zoom linki vb."
-                    required
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Katılımcılar *
-                  </label>
-                  
-                  {/* Hızlı Seçim Butonları */}
-                  <div className="mb-3 space-y-2">
-                    <button
-                      type="button"
-                      onClick={handleSelectAll}
-                      className="w-full px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition font-medium"
-                    >
-                      {formData.participants.length === users.length ? '❌ Tümünü Kaldır' : '✅ Tümünü Seç'}
-                    </button>
-                    
-                    <div className="border border-gray-200 rounded-lg p-3 bg-blue-50">
-                      <p className="text-xs font-medium text-gray-700 mb-2">📁 Birim Bazında Hızlı Seçim:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {DEPARTMENTS.map((dept) => {
-                          const deptUsers = users.filter(u => u.departments && u.departments.includes(dept));
-                          const deptUserIds = deptUsers.map(u => u._id);
-                          const isAllSelected = deptUserIds.length > 0 && deptUserIds.every(id => formData.participants.includes(id));
-                          
-                          return (
-                            <button
-                              key={dept}
-                              type="button"
-                              onClick={() => handleDepartmentToggle(dept)}
-                              disabled={deptUsers.length === 0}
-                              className={`px-3 py-1 text-xs rounded-full font-medium transition ${
-                                isAllSelected
-                                  ? 'bg-green-500 text-white hover:bg-green-600'
-                                  : deptUsers.length === 0
-                                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                                  : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                              }`}
-                            >
-                              {dept} ({deptUsers.length})
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Kullanıcı Listesi */}
-                  <div className="border border-gray-300 rounded-lg p-3 max-h-64 overflow-y-auto bg-white">
-                    <div className="space-y-1">
-                      {users.map((user) => (
-                        <label
-                          key={user._id}
-                          className={`flex items-center justify-between p-2 hover:bg-gray-50 rounded cursor-pointer transition ${
-                            formData.participants.includes(user._id) ? 'bg-blue-50' : ''
-                          }`}
-                        >
-                          <div className="flex items-center space-x-3">
-                            <input
-                              type="checkbox"
-                              checked={formData.participants.includes(user._id)}
-                              onChange={() => handleParticipantToggle(user._id)}
-                              className="rounded text-indigo-600 focus:ring-indigo-500"
-                            />
-                            <div>
-                              <span className="text-sm font-medium text-gray-700">
-                                {user.firstName} {user.lastName}
-                              </span>
-                              <p className="text-xs text-gray-500">{user.email}</p>
-                            </div>
-                          </div>
-                          
-                          {user.departments && user.departments.length > 0 && (
-                            <div className="flex flex-wrap gap-1">
-                              {user.departments.map((dept, idx) => (
-                                <span
-                                  key={idx}
-                                  className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full"
-                                >
-                                  {dept}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <p className="text-xs text-gray-600 mt-2">
-                    ✅ {formData.participants.length} kullanıcı seçildi
-                  </p>
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Yer *</label>
+                <input
+                  type="text"
+                  name="location"
+                  value={formData.location}
+                  onChange={handleInputChange}
+                  required
+                  disabled={submitting}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100"
+                  placeholder="Örn: Toplantı Odası A"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Katılımcılar * ({formData.participants.length} seçildi)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleSelectAll}
+                    disabled={submitting}
+                    className="text-xs text-indigo-600 hover:text-indigo-800 disabled:text-gray-400"
+                  >
+                    {formData.participants.length === users.length ? 'Tümünü Kaldır' : 'Tümünü Seç'}
+                  </button>
+                </div>
+
+                {/* Birim Bazlı Hızlı Seçim */}
+                <div className="mb-3 p-3 bg-gray-50 rounded-lg">
+                  <p className="text-xs font-medium text-gray-700 mb-2">Birim Bazlı Seçim:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {DEPARTMENTS.map((dept) => {
+                      const deptUsers = users.filter(u => u.departments && u.departments.includes(dept));
+                      const deptUserIds = deptUsers.map(u => u._id);
+                      const allSelected = deptUserIds.every(id => formData.participants.includes(id));
+                      
+                      return (
+                        <button
+                          key={dept}
+                          type="button"
+                          onClick={() => handleDepartmentToggle(dept)}
+                          disabled={submitting || deptUsers.length === 0}
+                          className={`px-2 py-1 text-xs rounded transition ${
+                            allSelected 
+                              ? 'bg-indigo-600 text-white' 
+                              : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                          } disabled:opacity-50`}
+                        >
+                          {dept} ({deptUsers.length})
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Kullanıcı Listesi */}
+                <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-3 space-y-2">
+                  {users.map((user) => (
+                    <label key={user._id} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                      <input
+                        type="checkbox"
+                        checked={formData.participants.includes(user._id)}
+                        onChange={() => handleParticipantToggle(user._id)}
+                        disabled={submitting}
+                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50"
+                      />
+                      <div className="flex-1">
+                        <span className="text-sm font-medium text-gray-900">
+                          {user.firstName} {user.lastName}
+                        </span>
+                        <span className="text-xs text-gray-500 ml-2">({user.email})</span>
+                        {user.departments && user.departments.length > 0 && (
+                          <div className="flex gap-1 mt-1">
+                            {user.departments.map((dept, idx) => (
+                              <span key={idx} className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
+                                {dept}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t">
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                  disabled={submitting}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
                 >
                   İptal
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
+                  disabled={submitting || formData.participants.length === 0}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
-                  {editingMeeting ? 'Güncelle' : 'Oluştur'}
+                  {submitting ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Kaydediliyor...</span>
+                    </>
+                  ) : (
+                    <span>{editingMeeting ? 'Güncelle' : 'Oluştur'}</span>
+                  )}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* Animasyon CSS */}
+      <style>{`
+        @keyframes slide-in-right {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        .animate-slide-in-right {
+          animation: slide-in-right 0.3s ease-out;
+        }
+      `}</style>
     </div>
   );
 };
