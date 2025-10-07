@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axiosInstance from '../utils/axios';
@@ -10,10 +10,12 @@ const WorkReports = () => {
 
   const [reports, setReports] = useState([]);
   const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState({
+    reports: false,
+    users: false
+  });
   const [exporting, setExporting] = useState(false);
   
-  // 🆕 Red modal state'leri
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectingReport, setRejectingReport] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
@@ -25,15 +27,9 @@ const WorkReports = () => {
     status: ''
   });
 
-  useEffect(() => {
-    fetchReports();
-    if (isAdmin) {
-      fetchUsers();
-    }
-  }, [filters]);
-
-  const fetchReports = async () => {
-    setLoading(true);
+  // ✅ Memoized fetch functions
+  const fetchReports = useCallback(async () => {
+    setLoading(prev => ({ ...prev, reports: true }));
     try {
       const params = new URLSearchParams();
       if (filters.userId) params.append('userId', filters.userId);
@@ -42,25 +38,36 @@ const WorkReports = () => {
       if (filters.status) params.append('status', filters.status);
 
       const response = await axiosInstance.get(`/work-reports?${params}`);
-      setReports(response.data.data);
+      setReports(response.data.data || []);
     } catch (error) {
       console.error('Rapor getirme hatası:', error);
-      alert('Raporlar yüklenemedi');
     } finally {
-      setLoading(false);
+      setLoading(prev => ({ ...prev, reports: false }));
     }
-  };
+  }, [filters.userId, filters.month, filters.year, filters.status]);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
+    if (!isAdmin) return;
+    
+    setLoading(prev => ({ ...prev, users: true }));
     try {
       const response = await axiosInstance.get('/users');
-      setUsers(response.data.data);
+      setUsers(response.data.data || []);
     } catch (error) {
       console.error('Kullanıcı getirme hatası:', error);
+    } finally {
+      setLoading(prev => ({ ...prev, users: false }));
     }
-  };
+  }, [isAdmin]);
 
-  const handleExportExcel = async () => {
+  // ✅ Paralel yükleme - mount'ta
+  useEffect(() => {
+    fetchReports();
+    fetchUsers();
+  }, [fetchReports, fetchUsers]);
+
+  // ✅ Memoized handlers
+  const handleExportExcel = useCallback(async () => {
     setExporting(true);
     try {
       const params = new URLSearchParams();
@@ -79,6 +86,7 @@ const WorkReports = () => {
       document.body.appendChild(link);
       link.click();
       link.remove();
+      window.URL.revokeObjectURL(url);
 
       alert('Excel dosyası indirildi!');
     } catch (error) {
@@ -87,9 +95,9 @@ const WorkReports = () => {
     } finally {
       setExporting(false);
     }
-  };
+  }, [filters.userId, filters.month, filters.year]);
 
-  const handleDelete = async (id) => {
+  const handleDelete = useCallback(async (id) => {
     if (!window.confirm('Bu raporu silmek istediğinizden emin misiniz?')) return;
 
     try {
@@ -100,19 +108,16 @@ const WorkReports = () => {
       console.error('Silme hatası:', error);
       alert('Rapor silinemedi');
     }
-  };
+  }, [fetchReports]);
 
-  // 🆕 Güncellenmiş durum değiştirme fonksiyonu
-  const handleStatusChange = async (reportId, newStatus) => {
+  const handleStatusChange = useCallback(async (reportId, newStatus) => {
     if (newStatus === 'rejected') {
-      // Red için modal aç
       const report = reports.find(r => r._id === reportId);
       setRejectingReport(report);
       setShowRejectModal(true);
       return;
     }
 
-    // Onay direkt çalışsın
     try {
       await axiosInstance.put(`/work-reports/${reportId}`, { status: newStatus });
       alert('Rapor onaylandı!');
@@ -121,10 +126,9 @@ const WorkReports = () => {
       console.error('Durum güncelleme hatası:', error);
       alert('Durum güncellenemedi');
     }
-  };
+  }, [reports, fetchReports]);
 
-  // 🆕 Red modalı submit fonksiyonu
-  const handleRejectSubmit = async () => {
+  const handleRejectSubmit = useCallback(async () => {
     if (!rejectionReason.trim()) {
       alert('Lütfen red sebebini yazın');
       return;
@@ -144,9 +148,18 @@ const WorkReports = () => {
       console.error('Red işlemi hatası:', error);
       alert('Rapor reddedilemedi');
     }
-  };
+  }, [rejectingReport, rejectionReason, fetchReports]);
 
-  const getStatusBadge = (status) => {
+  const handleNavigate = useCallback((path) => () => {
+    navigate(path);
+  }, [navigate]);
+
+  const handleFilterChange = useCallback((field, value) => {
+    setFilters(prev => ({ ...prev, [field]: value }));
+  }, []);
+
+  // ✅ Memoized status badge
+  const getStatusBadge = useCallback((status) => {
     const badges = {
       draft: 'bg-gray-100 text-gray-800',
       submitted: 'bg-blue-100 text-blue-800',
@@ -171,21 +184,33 @@ const WorkReports = () => {
         )}
       </div>
     );
-  };
+  }, []);
 
-  const totalHours = reports.reduce((sum, r) => sum + r.hoursWorked, 0);
+  // ✅ Memoized calculations
+  const totalHours = useMemo(() => {
+    return reports.reduce((sum, r) => sum + r.hoursWorked, 0);
+  }, [reports]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-xl text-gray-600">Yükleniyor...</div>
-      </div>
-    );
-  }
+  const avgHours = useMemo(() => {
+    return reports.length > 0 ? (totalHours / reports.length).toFixed(1) : '0';
+  }, [reports.length, totalHours]);
+
+  // ✅ Skeleton loader
+  const SkeletonRow = () => (
+    <tr className="animate-pulse">
+      <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+      {isAdmin && <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-32"></div></td>}
+      <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-48"></div></td>
+      <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+      <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-16"></div></td>
+      <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+      <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-16"></div></td>
+    </tr>
+  );
 
   return (
     <div>
-      {/* Header */}
+      {/* Header - ANINDA GÖRÜNÜR */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Çalışma Raporları</h1>
@@ -202,10 +227,9 @@ const WorkReports = () => {
             {exporting ? '📥 İndiriliyor...' : '📊 Excel İndir'}
           </button>
           
-          {/* 🆕 Yeni Rapor butonu - Ayrı sayfaya yönlendirir */}
           {!isAdmin && (
             <button
-              onClick={() => navigate('/work-reports/create')}
+              onClick={handleNavigate('/work-reports/create')}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
             >
               + Yeni Rapor
@@ -214,7 +238,7 @@ const WorkReports = () => {
         </div>
       </div>
 
-      {/* Filtreler */}
+      {/* Filtreler - ANINDA GÖRÜNÜR */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {isAdmin && (
@@ -222,8 +246,9 @@ const WorkReports = () => {
               <label className="block text-sm font-medium text-gray-700 mb-2">Kullanıcı</label>
               <select
                 value={filters.userId}
-                onChange={(e) => setFilters({ ...filters, userId: e.target.value })}
+                onChange={(e) => handleFilterChange('userId', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                disabled={loading.users}
               >
                 <option value="">Tüm Kullanıcılar</option>
                 {users.map(u => (
@@ -239,12 +264,13 @@ const WorkReports = () => {
             <label className="block text-sm font-medium text-gray-700 mb-2">Ay</label>
             <select
               value={filters.month}
-              onChange={(e) => setFilters({ ...filters, month: e.target.value })}
+              onChange={(e) => handleFilterChange('month', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             >
-              {Array.from({ length: 12 }, (_, i) => (
+              <option value="">Tüm Aylar</option>
+              {[...Array(12)].map((_, i) => (
                 <option key={i + 1} value={i + 1}>
-                  {new Date(2024, i).toLocaleString('tr-TR', { month: 'long' })}
+                  {new Date(2000, i).toLocaleDateString('tr-TR', { month: 'long' })}
                 </option>
               ))}
             </select>
@@ -254,12 +280,17 @@ const WorkReports = () => {
             <label className="block text-sm font-medium text-gray-700 mb-2">Yıl</label>
             <select
               value={filters.year}
-              onChange={(e) => setFilters({ ...filters, year: e.target.value })}
+              onChange={(e) => handleFilterChange('year', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             >
-              {[2024, 2025, 2026].map(y => (
-                <option key={y} value={y}>{y}</option>
-              ))}
+              {[...Array(5)].map((_, i) => {
+                const year = new Date().getFullYear() - i;
+                return (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -267,7 +298,7 @@ const WorkReports = () => {
             <label className="block text-sm font-medium text-gray-700 mb-2">Durum</label>
             <select
               value={filters.status}
-              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+              onChange={(e) => handleFilterChange('status', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Tüm Durumlar</option>
@@ -279,46 +310,61 @@ const WorkReports = () => {
           </div>
         </div>
       </div>
-
-      {/* Özet Kartları */}
+      {/* Özet Kartları - Skeleton veya Data */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Toplam Rapor</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{reports.length}</p>
+        {loading.reports ? (
+          <>
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-pulse">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-24"></div>
+                    <div className="h-8 bg-gray-200 rounded w-16"></div>
+                  </div>
+                  <div className="w-12 h-12 bg-gray-200 rounded-lg"></div>
+                </div>
+              </div>
+            ))}
+          </>
+        ) : (
+          <>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Toplam Rapor</p>
+                  <p className="text-3xl font-bold text-gray-900 mt-1">{reports.length}</p>
+                </div>
+                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <span className="text-2xl">📊</span>
+                </div>
+              </div>
             </div>
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <span className="text-2xl">📊</span>
-            </div>
-          </div>
-        </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Toplam Saat</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{totalHours.toFixed(1)}</p>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Toplam Saat</p>
+                  <p className="text-3xl font-bold text-gray-900 mt-1">{totalHours.toFixed(1)}</p>
+                </div>
+                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                  <span className="text-2xl">⏰</span>
+                </div>
+              </div>
             </div>
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <span className="text-2xl">⏰</span>
-            </div>
-          </div>
-        </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Ortalama Saat</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">
-                {reports.length > 0 ? (totalHours / reports.length).toFixed(1) : '0'}
-              </p>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Ortalama Saat</p>
+                  <p className="text-3xl font-bold text-gray-900 mt-1">{avgHours}</p>
+                </div>
+                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                  <span className="text-2xl">📈</span>
+                </div>
+              </div>
             </div>
-            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-              <span className="text-2xl">📈</span>
-            </div>
-          </div>
-        </div>
+          </>
+        )}
       </div>
 
       {/* Raporlar Tablosu */}
@@ -353,10 +399,17 @@ const WorkReports = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {reports.length === 0 ? (
+              {loading.reports ? (
+                <>
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <SkeletonRow key={i} />
+                  ))}
+                </>
+              ) : reports.length === 0 ? (
                 <tr>
                   <td colSpan={isAdmin ? 7 : 6} className="px-6 py-12 text-center text-gray-500">
-                    Rapor bulunamadı
+                    <div className="text-6xl mb-4">📝</div>
+                    <p>Rapor bulunamadı</p>
                   </td>
                 </tr>
               ) : (
@@ -378,13 +431,11 @@ const WorkReports = () => {
                             📁 Proje: {report.project}
                           </div>
                         )}
-                        {/* 🆕 Dosya eki gösterimi */}
                         {report.attachmentCount > 0 && (
                           <div className="text-xs text-blue-600 mt-1 flex items-center gap-1">
                             📎 {report.attachmentCount} dosya eki
                           </div>
                         )}
-                        {/* Red sebebi gösterimi */}
                         {report.rejectionReason && (
                           <div className="text-xs text-red-600 mt-2 bg-red-50 p-2 rounded border border-red-200">
                             <strong>❌ Red Sebebi:</strong> {report.rejectionReason}
@@ -403,9 +454,8 @@ const WorkReports = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <div className="flex items-center gap-2">
-                        {/* 🆕 Detay butonu - Tüm kullanıcılar için */}
                         <button
-                          onClick={() => navigate(`/work-reports/${report._id}`)}
+                          onClick={handleNavigate(`/work-reports/${report._id}`)}
                           className="text-blue-600 hover:text-blue-800"
                           title="Detayları Gör"
                         >
@@ -413,49 +463,44 @@ const WorkReports = () => {
                         </button>
 
                         {isAdmin ? (
-                          <>
-                            {report.status !== 'approved' && (
+                          report.status === 'submitted' && (
+                            <>
                               <button
                                 onClick={() => handleStatusChange(report._id, 'approved')}
-                                className="text-green-600 hover:text-green-800 font-medium text-lg"
+                                className="text-green-600 hover:text-green-800"
                                 title="Onayla"
                               >
-                                ✓
+                                ✅
                               </button>
-                            )}
-                            {report.status !== 'rejected' && (
                               <button
                                 onClick={() => handleStatusChange(report._id, 'rejected')}
-                                className="text-red-600 hover:text-red-800 font-medium text-lg"
+                                className="text-red-600 hover:text-red-800"
                                 title="Reddet"
                               >
-                                ✗
+                                ❌
                               </button>
-                            )}
-                            <button
-                              onClick={() => handleDelete(report._id)}
-                              className="text-red-600 hover:text-red-800"
-                              title="Sil"
-                            >
-                              🗑️
-                            </button>
-                          </>
+                            </>
+                          )
                         ) : (
                           <>
-                            <button
-                              onClick={() => navigate(`/work-reports/${report._id}/edit`)}
-                              className="text-blue-600 hover:text-blue-800"
-                              title="Düzenle"
-                            >
-                              ✏️
-                            </button>
-                            <button
-                              onClick={() => handleDelete(report._id)}
-                              className="text-red-600 hover:text-red-800"
-                              title="Sil"
-                            >
-                              🗑️
-                            </button>
+                            {report.status !== 'approved' && report.status !== 'rejected' && (
+                              <button
+                                onClick={handleNavigate(`/work-reports/${report._id}/edit`)}
+                                className="text-indigo-600 hover:text-indigo-800"
+                                title="Düzenle"
+                              >
+                                ✏️
+                              </button>
+                            )}
+                            {report.status === 'draft' && (
+                              <button
+                                onClick={() => handleDelete(report._id)}
+                                className="text-red-600 hover:text-red-800"
+                                title="Sil"
+                              >
+                                🗑️
+                              </button>
+                            )}
                           </>
                         )}
                       </div>
@@ -468,7 +513,7 @@ const WorkReports = () => {
         </div>
       </div>
 
-      {/* 🆕 Red Sebebi Modalı */}
+      {/* Red Modalı */}
       {showRejectModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
