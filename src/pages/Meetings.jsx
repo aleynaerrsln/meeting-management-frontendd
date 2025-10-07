@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axiosInstance from '../utils/axios'; // ✅ utils/axios kullanılıyor
+import { useAuth } from '../context/AuthContext';
+import axiosInstance from '../utils/axios';
 
 const DEPARTMENTS = [
   'Yazılım Birimi',
@@ -13,6 +14,7 @@ const DEPARTMENTS = [
 
 const Meetings = () => {
   const navigate = useNavigate();
+  const { user, isAdmin } = useAuth();
   const [meetings, setMeetings] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,8 +22,8 @@ const Meetings = () => {
   const [editingMeeting, setEditingMeeting] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [exportingId, setExportingId] = useState(null);
-  const [submitting, setSubmitting] = useState(false); // 🆕 Form gönderim durumu
-  const [notification, setNotification] = useState(null); // 🆕 Modern bildirim
+  const [submitting, setSubmitting] = useState(false);
+  const [notification, setNotification] = useState(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -31,18 +33,13 @@ const Meetings = () => {
     participants: [],
   });
 
-  useEffect(() => {
-    fetchMeetings();
-    fetchUsers();
-  }, []);
-
-  // 🆕 Modern bildirim gösterme
-  const showNotification = (message, type = 'success') => {
+  // ✅ Memoized callbacks
+  const showNotification = useCallback((message, type = 'success') => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 4000);
-  };
+  }, []);
 
-  const fetchMeetings = async () => {
+  const fetchMeetings = useCallback(async () => {
     try {
       const response = await axiosInstance.get('/meetings');
       setMeetings(response.data.data || []);
@@ -52,18 +49,26 @@ const Meetings = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showNotification]);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const response = await axiosInstance.get('/users');
       setUsers(response.data.data || []);
     } catch (error) {
       console.error('Kullanıcılar yüklenemedi:', error);
     }
-  };
+  }, []);
 
-  const handleExportExcel = async () => {
+  // ✅ Tek useEffect - sadece mount'ta çalışır
+  useEffect(() => {
+    fetchMeetings();
+    if (isAdmin) {
+      fetchUsers();
+    }
+  }, []); // ✅ Boş dependency array - sadece ilk mount'ta çalışır
+
+  const handleExportExcel = useCallback(async () => {
     try {
       setExporting(true);
       const response = await axiosInstance.get('/export/meetings', {
@@ -86,9 +91,9 @@ const Meetings = () => {
     } finally {
       setExporting(false);
     }
-  };
+  }, [showNotification]);
 
-  const handleExportAttendance = async (meetingId) => {
+  const handleExportAttendance = useCallback(async (meetingId) => {
     try {
       setExportingId(meetingId + '-attendance');
       const response = await axiosInstance.get(`/export/attendance/${meetingId}`, {
@@ -111,9 +116,9 @@ const Meetings = () => {
     } finally {
       setExportingId(null);
     }
-  };
+  }, [showNotification]);
 
-  const handleExportNotes = async (meetingId) => {
+  const handleExportNotes = useCallback(async (meetingId) => {
     try {
       setExportingId(meetingId + '-notes');
       const response = await axiosInstance.get(`/export/meeting-notes/${meetingId}`, {
@@ -136,37 +141,37 @@ const Meetings = () => {
     } finally {
       setExportingId(null);
     }
-  };
+  }, [showNotification]);
 
-  const handleInputChange = (e) => {
+  const handleInputChange = useCallback((e) => {
     const { name, value } = e.target;
-    setFormData({
-      ...formData,
+    setFormData(prev => ({
+      ...prev,
       [name]: value,
-    });
-  };
+    }));
+  }, []);
 
-  const handleParticipantToggle = (userId) => {
+  const handleParticipantToggle = useCallback((userId) => {
     setFormData((prev) => ({
       ...prev,
       participants: prev.participants.includes(userId)
         ? prev.participants.filter((id) => id !== userId)
         : [...prev.participants, userId],
     }));
-  };
+  }, []);
 
-  const handleDepartmentToggle = (department) => {
-    const departmentUsers = users.filter(user => 
-      user.departments && user.departments.includes(department)
-    );
-    
-    const departmentUserIds = departmentUsers.map(u => u._id);
-    
-    const allSelected = departmentUserIds.every(id => 
-      formData.participants.includes(id)
-    );
-    
+  const handleDepartmentToggle = useCallback((department) => {
     setFormData((prev) => {
+      const departmentUsers = users.filter(user => 
+        user.departments && user.departments.includes(department)
+      );
+      
+      const departmentUserIds = departmentUsers.map(u => u._id);
+      
+      const allSelected = departmentUserIds.every(id => 
+        prev.participants.includes(id)
+      );
+      
       if (allSelected) {
         return {
           ...prev,
@@ -182,53 +187,51 @@ const Meetings = () => {
         };
       }
     });
-  };
+  }, [users]);
 
-  const handleSelectAll = () => {
-    if (formData.participants.length === users.length) {
-      setFormData(prev => ({ ...prev, participants: [] }));
-    } else {
-      setFormData(prev => ({ 
-        ...prev, 
-        participants: users.map(u => u._id) 
-      }));
-    }
-  };
+  const handleSelectAll = useCallback(() => {
+    setFormData(prev => {
+      if (prev.participants.length === users.length) {
+        return { ...prev, participants: [] };
+      } else {
+        return { 
+          ...prev, 
+          participants: users.map(u => u._id) 
+        };
+      }
+    });
+  }, [users]);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
 
-    // ✅ Validation
     if (formData.participants.length === 0) {
       showNotification('⚠️ En az bir katılımcı seçmelisiniz!', 'error');
       return;
     }
 
-    setSubmitting(true); // ✅ Loading durumu başlat
+    setSubmitting(true);
 
     try {
       if (editingMeeting) {
         await axiosInstance.put(`/meetings/${editingMeeting._id}`, formData);
         showNotification('✅ Toplantı başarıyla güncellendi!', 'success');
       } else {
-        const response = await axiosInstance.post('/meetings', formData);
+        await axiosInstance.post('/meetings', formData);
         showNotification('✅ Toplantı başarıyla oluşturuldu!', 'success');
-        
-        // ✅ Yeni oluşturulan toplantının detay sayfasına yönlendir (opsiyonel)
-        // setTimeout(() => navigate(`/meetings/${response.data.meeting._id}`), 1500);
       }
 
-      await fetchMeetings(); // ✅ Listeyi yenile
+      await fetchMeetings();
       handleCloseModal();
     } catch (error) {
       console.error('İşlem başarısız:', error);
       showNotification(error.response?.data?.message || '❌ Bir hata oluştu', 'error');
     } finally {
-      setSubmitting(false); // ✅ Loading durumu bitir
+      setSubmitting(false);
     }
-  };
+  }, [formData, editingMeeting, showNotification, fetchMeetings]);
 
-  const handleEdit = (meeting) => {
+  const handleEdit = useCallback((meeting) => {
     setEditingMeeting(meeting);
     setFormData({
       title: meeting.title,
@@ -239,9 +242,9 @@ const Meetings = () => {
       participants: meeting.participants.map((p) => p._id),
     });
     setShowModal(true);
-  };
+  }, []);
 
-  const handleDelete = async (id) => {
+  const handleDelete = useCallback(async (id) => {
     if (!window.confirm('Bu toplantıyı silmek istediğinizden emin misiniz?')) {
       return;
     }
@@ -254,9 +257,9 @@ const Meetings = () => {
       console.error('Silme işlemi başarısız:', error);
       showNotification(error.response?.data?.message || 'Toplantı silinemedi', 'error');
     }
-  };
+  }, [fetchMeetings, showNotification]);
 
-  const handleCloseModal = () => {
+  const handleCloseModal = useCallback(() => {
     setShowModal(false);
     setEditingMeeting(null);
     setFormData({
@@ -267,15 +270,49 @@ const Meetings = () => {
       location: '',
       participants: [],
     });
-  };
+  }, []);
 
-  const formatDate = (date) => {
+  const formatDate = useCallback((date) => {
     return new Date(date).toLocaleDateString('tr-TR', {
       day: 'numeric',
       month: 'long',
       year: 'numeric'
     });
-  };
+  }, []);
+
+  // ✅ Memoized helper functions
+  const getUserAttendanceStatus = useCallback((meeting) => {
+    if (!user) return 'pending';
+    const attendance = meeting.attendance?.find(a => 
+      (a.user?._id === user._id || a.user === user._id)
+    );
+    return attendance?.status || 'pending';
+  }, [user]);
+
+  const getAttendanceLabel = useCallback((status) => {
+    switch(status) {
+      case 'attended': return '✓ Katıldın';
+      case 'not_attended': return '✗ Katılmadın';
+      default: return '⏳ Bekliyor';
+    }
+  }, []);
+
+  const getAttendanceBadgeClass = useCallback((status) => {
+    switch(status) {
+      case 'attended': return 'bg-green-100 text-green-800';
+      case 'not_attended': return 'bg-red-100 text-red-800';
+      default: return 'bg-yellow-100 text-yellow-800';
+    }
+  }, []);
+
+  // ✅ Memoized computed values
+  const departmentUsersMap = useMemo(() => {
+    const map = {};
+    DEPARTMENTS.forEach(dept => {
+      map[dept] = users.filter(u => u.departments && u.departments.includes(dept));
+    });
+    return map;
+  }, [users]);
 
   if (loading) {
     return (
@@ -285,9 +322,140 @@ const Meetings = () => {
     );
   }
 
+  // ✅ KULLANICI GÖRÜNÜMÜ
+  if (!isAdmin) {
+    return (
+      <div>
+        {notification && (
+          <div className="fixed top-4 right-4 z-50 animate-slide-in-right">
+            <div className={`rounded-lg shadow-lg p-4 min-w-[300px] max-w-md ${
+              notification.type === 'success' ? 'bg-green-50 border border-green-200' :
+              notification.type === 'error' ? 'bg-red-50 border border-red-200' :
+              'bg-yellow-50 border border-yellow-200'
+            }`}>
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  {notification.type === 'success' ? (
+                    <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  ) : (
+                    <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  )}
+                </div>
+                <div className="ml-3 flex-1">
+                  <p className={`text-sm font-medium ${
+                    notification.type === 'success' ? 'text-green-800' : 'text-red-800'
+                  }`}>
+                    {notification.message}
+                  </p>
+                </div>
+                <button onClick={() => setNotification(null)} className="ml-4 flex-shrink-0 inline-flex text-gray-400 hover:text-gray-500">
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900">Toplantılarım</h1>
+          <p className="text-gray-600 mt-1">Katıldığınız toplantıları görüntüleyin</p>
+        </div>
+
+        {meetings.length === 0 ? (
+          <div className="text-center py-12 bg-white rounded-xl shadow-sm">
+            <div className="text-6xl mb-4">📅</div>
+            <p className="text-gray-500">Henüz hiçbir toplantıya davet edilmediniz.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {meetings.map((meeting) => {
+              const userAttendanceStatus = getUserAttendanceStatus(meeting);
+              
+              return (
+                <div key={meeting._id} className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition">
+                  <div className="p-6">
+                    <div className="flex items-start justify-between mb-3">
+                      <h3 className="text-lg font-semibold text-gray-900 flex-1">{meeting.title}</h3>
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        meeting.status === 'completed' ? 'bg-green-100 text-green-800' :
+                        meeting.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                        'bg-blue-100 text-blue-800'
+                      }`}>
+                        {meeting.status === 'completed' ? 'Tamamlandı' :
+                         meeting.status === 'cancelled' ? 'İptal' : 'Planlandı'}
+                      </span>
+                    </div>
+
+                    <div className="mb-4">
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getAttendanceBadgeClass(userAttendanceStatus)}`}>
+                        {getAttendanceLabel(userAttendanceStatus)}
+                      </span>
+                    </div>
+
+                    {meeting.description && (
+                      <p className="text-sm text-gray-600 mb-4 line-clamp-2">{meeting.description}</p>
+                    )}
+
+                    <div className="space-y-2 mb-4">
+                      <div className="flex items-center text-sm text-gray-600">
+                        <span className="mr-2">📅</span>
+                        <span>{formatDate(meeting.date)}</span>
+                      </div>
+                      <div className="flex items-center text-sm text-gray-600">
+                        <span className="mr-2">🕐</span>
+                        <span>{meeting.time}</span>
+                      </div>
+                      <div className="flex items-center text-sm text-gray-600">
+                        <span className="mr-2">📍</span>
+                        <span>{meeting.location}</span>
+                      </div>
+                      <div className="flex items-center text-sm text-gray-600">
+                        <span className="mr-2">👥</span>
+                        <span>{meeting.participants?.length || 0} Katılımcı</span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => navigate(`/meetings/${meeting._id}`)}
+                      className="w-full px-4 py-2 text-sm bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg transition"
+                    >
+                      Detayları Görüntüle
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <style>{`
+          @keyframes slide-in-right {
+            from {
+              transform: translateX(100%);
+              opacity: 0;
+            }
+            to {
+              transform: translateX(0);
+              opacity: 1;
+            }
+          }
+          .animate-slide-in-right {
+            animation: slide-in-right 0.3s ease-out;
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  // ✅ ADMİN GÖRÜNÜMÜ
   return (
     <div>
-      {/* 🆕 Modern Bildirim */}
       {notification && (
         <div className="fixed top-4 right-4 z-50 animate-slide-in-right">
           <div
@@ -336,7 +504,6 @@ const Meetings = () => {
         </div>
       )}
 
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Toplantılar</h1>
@@ -372,7 +539,6 @@ const Meetings = () => {
         </div>
       </div>
 
-      {/* Meetings Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {meetings.map((meeting) => (
           <div key={meeting._id} className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition">
@@ -433,7 +599,6 @@ const Meetings = () => {
                 </button>
               </div>
 
-              {/* Export Butonları */}
               {meeting.status !== 'cancelled' && (
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <button
@@ -484,7 +649,6 @@ const Meetings = () => {
         ))}
       </div>
 
-      {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
@@ -588,12 +752,11 @@ const Meetings = () => {
                   </button>
                 </div>
 
-                {/* Birim Bazlı Hızlı Seçim */}
                 <div className="mb-3 p-3 bg-gray-50 rounded-lg">
                   <p className="text-xs font-medium text-gray-700 mb-2">Birim Bazlı Seçim:</p>
                   <div className="flex flex-wrap gap-2">
                     {DEPARTMENTS.map((dept) => {
-                      const deptUsers = users.filter(u => u.departments && u.departments.includes(dept));
+                      const deptUsers = departmentUsersMap[dept] || [];
                       const deptUserIds = deptUsers.map(u => u._id);
                       const allSelected = deptUserIds.every(id => formData.participants.includes(id));
                       
@@ -616,7 +779,6 @@ const Meetings = () => {
                   </div>
                 </div>
 
-                {/* Kullanıcı Listesi */}
                 <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-3 space-y-2">
                   {users.map((user) => (
                     <label key={user._id} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
@@ -679,7 +841,6 @@ const Meetings = () => {
         </div>
       )}
 
-      {/* Animasyon CSS */}
       <style>{`
         @keyframes slide-in-right {
           from {

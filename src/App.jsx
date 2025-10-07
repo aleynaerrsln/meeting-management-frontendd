@@ -10,9 +10,9 @@ import Users from './pages/Users';
 import Meetings from './pages/Meetings';
 import MeetingDetail from './pages/MeetingDetail';
 import WorkReports from './pages/WorkReports';
-import CreateWorkReport from './pages/CreateWorkReport'; // 🆕 YENİ EKLENEN
-import EditWorkReport from './pages/EditWorkReport'; // 🆕 YENİ EKLENEN
-import WorkReportDetail from './pages/WorkReportDetail'; // 🆕 YENİ EKLENEN
+import CreateWorkReport from './pages/CreateWorkReport';
+import EditWorkReport from './pages/EditWorkReport';
+import WorkReportDetail from './pages/WorkReportDetail';
 import Profile from './pages/Profile';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
@@ -38,40 +38,26 @@ function App() {
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/profile" element={<Profile />} />
                     
-                    {/* 🆕 Work Reports Routes - Yeni Eklenen */}
+                    {/* Work Reports Routes - Tüm kullanıcılar erişebilir */}
                     <Route path="/work-reports" element={<WorkReports />} />
                     <Route path="/work-reports/create" element={<CreateWorkReport />} />
                     <Route path="/work-reports/:id" element={<WorkReportDetail />} />
                     <Route path="/work-reports/:id/edit" element={<EditWorkReport />} />
                     
+                    {/* ✅ Meetings Routes - Tüm kullanıcılar erişebilir (DÜZELTME YAPILDI) */}
+                    <Route path="/meetings" element={<Meetings />} />
+                    <Route path="/meetings/:id" element={<MeetingDetail />} />
+                    
                     <Route path="/sponsorships" element={<Sponsorships />} />
                     <Route path="/notifications" element={<Notifications />} />
                     <Route path="/messages" element={<Messages />} />
 
-                    {/* Admin Only Routes */}
+                    {/* Admin Only Routes - Sadece Users sayfası admin'e özel */}
                     <Route
                       path="/users"
                       element={
                         <ProtectedRoute adminOnly>
                           <Users />
-                        </ProtectedRoute>
-                      }
-                    />
-
-                    <Route
-                      path="/meetings"
-                      element={
-                        <ProtectedRoute adminOnly>
-                          <Meetings />
-                        </ProtectedRoute>
-                      }
-                    />
-
-                    <Route
-                      path="/meetings/:id"
-                      element={
-                        <ProtectedRoute adminOnly>
-                          <MeetingDetail />
                         </ProtectedRoute>
                       }
                     />

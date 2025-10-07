@@ -1,90 +1,58 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLocation } from 'react-router-dom';
 import axiosInstance from '../utils/axios';
-import UserAvatar from '../components/UserAvatar'; // 🆕 AVATAR COMPONENT
+import UserAvatar from '../components/UserAvatar';
 
 const Messages = () => {
   const { user } = useAuth();
   const location = useLocation();
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const hasSelectedUserRef = useRef(false); // ✅ Sadece 1 kez seçim için
   
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [unreadByUser, setUnreadByUser] = useState({}); // Her kullanıcıdan okunmamış sayısı
+  const [unreadByUser, setUnreadByUser] = useState({});
   
-  // Seçili kullanıcı ve konuşma
   const [selectedUser, setSelectedUser] = useState(null);
   const [conversation, setConversation] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Yeni mesaj
   const [newMessageText, setNewMessageText] = useState('');
   const [sending, setSending] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
 
-  useEffect(() => {
-    fetchUsers();
-    fetchUnreadCount();
-    fetchUnreadByUser();
-    
-    // Floating button'dan gelen kullanıcı
-    if (location.state?.selectedUserId) {
-      const targetUser = users.find(u => u._id === location.state.selectedUserId);
-      if (targetUser) {
-        handleSelectUser(targetUser);
-      }
-    }
-  }, [location.state]);
-
-  useEffect(() => {
-    // Kullanıcı listesi yüklendiğinde location.state kontrolü
-    if (users.length > 0 && location.state?.selectedUserId) {
-      const targetUser = users.find(u => u._id === location.state.selectedUserId);
-      if (targetUser) {
-        handleSelectUser(targetUser);
-      }
-    }
-  }, [users, location.state]);
-
-  useEffect(() => {
-    // Konuşma değiştiğinde en alta scroll
-    scrollToBottom();
-  }, [conversation]);
-
-  const scrollToBottom = () => {
+  // ✅ Memoized callbacks - dependency'ler minimize edildi
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  }, []);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      // 🆕 Cache'i bypass et
       const response = await axiosInstance.get('/messages/users', {
-        params: { _: Date.now() } // Cache buster
+        params: { _: Date.now() }
       });
-      console.log('📋 Kullanıcı listesi:', response.data.data); // Debug
       setUsers(response.data.data);
     } catch (error) {
       console.error('Kullanıcı listesi hatası:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchUnreadCount = async () => {
+  const fetchUnreadCount = useCallback(async () => {
     try {
       const response = await axiosInstance.get('/messages/unread-count');
       setUnreadCount(response.data.count);
     } catch (error) {
       console.error('Okunmamış mesaj hatası:', error);
     }
-  };
+  }, []);
 
-  // 🆕 Her kullanıcıdan okunmamış mesaj sayısını getir
-  const fetchUnreadByUser = async () => {
+  const fetchUnreadByUser = useCallback(async () => {
     try {
       const response = await axiosInstance.get('/messages/unread-by-user');
       const unreadMap = {};
@@ -95,25 +63,62 @@ const Messages = () => {
     } catch (error) {
       console.error('Kullanıcı bazlı okunmamış mesaj hatası:', error);
     }
-  };
+  }, []);
 
-  const handleSelectUser = async (otherUser) => {
+  const handleSelectUser = useCallback(async (otherUser) => {
     setSelectedUser(otherUser);
     try {
       const response = await axiosInstance.get(`/messages/conversation/${otherUser._id}`);
       setConversation(response.data.data);
       fetchUnreadCount();
-      fetchUnreadByUser(); // Liste güncellenir
+      fetchUnreadByUser();
     } catch (error) {
       console.error('Konuşma getirme hatası:', error);
     }
-  };
+  }, [fetchUnreadCount, fetchUnreadByUser]);
 
-  // 🆕 Dosya seçme
-  const handleFileSelect = (e) => {
+  // ✅ İlk yükleme - Sadece 1 kez
+  useEffect(() => {
+    const initializeMessages = async () => {
+      await fetchUsers();
+      fetchUnreadCount();
+      fetchUnreadByUser();
+    };
+    
+    initializeMessages();
+  }, [fetchUsers, fetchUnreadCount, fetchUnreadByUser]);
+
+  // ✅ Location'dan gelen kullanıcı seçimi - useRef ile sadece 1 kez
+  useEffect(() => {
+    if (users.length > 0 && location.state?.selectedUserId && !hasSelectedUserRef.current) {
+      const targetUser = users.find(u => u._id === location.state.selectedUserId);
+      if (targetUser) {
+        handleSelectUser(targetUser);
+        hasSelectedUserRef.current = true; // ✅ Bir daha çalışmaz
+      }
+    }
+  }, [users, location.state?.selectedUserId, handleSelectUser]);
+
+  // ✅ Location tamamen değiştiğinde reset
+  useEffect(() => {
+    return () => {
+      hasSelectedUserRef.current = false;
+    };
+  }, [location.pathname]);
+
+  // ✅ Conversation değiştiğinde scroll - throttle ile optimize
+  useEffect(() => {
+    if (conversation.length > 0) {
+      const timer = setTimeout(() => {
+        scrollToBottom();
+      }, 100); // ✅ 100ms throttle
+      return () => clearTimeout(timer);
+    }
+  }, [conversation.length, scrollToBottom]); // ✅ length ile optimize edildi
+
+  const handleFileSelect = useCallback((e) => {
     const files = Array.from(e.target.files);
     
-    // Dosya tipi kontrolü
     const validFiles = files.filter(file => {
       const isImage = file.type.startsWith('image/');
       const isPDF = file.type === 'application/pdf';
@@ -131,50 +136,87 @@ const Messages = () => {
     });
 
     setSelectedFiles(prev => [...prev, ...validFiles]);
-  };
+  }, []);
 
-  // 🆕 Dosya kaldırma
-  const removeFile = (index) => {
+  const removeFile = useCallback((index) => {
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-  };
+  }, []);
 
-  const handleSendMessage = async (e) => {
+  const handleSendMessage = useCallback(async (e) => {
     e.preventDefault();
     
     if ((!newMessageText.trim() && selectedFiles.length === 0) || !selectedUser) return;
+
+    // ✅ Optimistic update - mesajı hemen ekle
+    const tempMessage = {
+      _id: `temp-${Date.now()}`,
+      sender: { _id: user._id, firstName: user.firstName, lastName: user.lastName },
+      receiver: selectedUser._id,
+      content: newMessageText || '📎 Dosya eki',
+      subject: 'Mesaj',
+      attachments: selectedFiles.map((file, idx) => ({
+        _id: `temp-file-${idx}`,
+        originalName: file.name,
+        mimetype: file.type,
+        size: file.size
+      })),
+      createdAt: new Date().toISOString(),
+      isRead: false,
+      isSending: true // ✅ Gönderim durumu
+    };
+
+    // ✅ Anında conversation'a ekle
+    setConversation(prev => [...prev, tempMessage]);
+    
+    // ✅ Input'ları temizle
+    const messageToSend = newMessageText;
+    const filesToSend = [...selectedFiles];
+    setNewMessageText('');
+    setSelectedFiles([]);
 
     setSending(true);
     try {
       const formData = new FormData();
       formData.append('receiver', selectedUser._id);
       formData.append('subject', 'Mesaj');
-      formData.append('content', newMessageText || '📎 Dosya eki');
+      formData.append('content', messageToSend || '📎 Dosya eki');
       
-      // Dosyaları ekle
-      selectedFiles.forEach(file => {
+      filesToSend.forEach(file => {
         formData.append('attachments', file);
       });
 
-      await axiosInstance.post('/messages', formData, {
+      const response = await axiosInstance.post('/messages', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
       });
+
+      // ✅ Gerçek mesajı API'den al ve temp mesajı değiştir
+      setConversation(prev => 
+        prev.map(msg => 
+          msg._id === tempMessage._id ? response.data.data : msg
+        )
+      );
       
-      setNewMessageText('');
-      setSelectedFiles([]);
-      // Konuşmayı yenile
-      handleSelectUser(selectedUser);
+      fetchUnreadCount();
+      fetchUnreadByUser();
     } catch (error) {
       console.error('Mesaj gönderme hatası:', error);
+      
+      // ✅ Hata olursa temp mesajı kaldır
+      setConversation(prev => prev.filter(msg => msg._id !== tempMessage._id));
+      
+      // ✅ Input'ları geri yükle
+      setNewMessageText(messageToSend);
+      setSelectedFiles(filesToSend);
+      
       alert(error.response?.data?.message || 'Mesaj gönderilemedi');
     } finally {
       setSending(false);
     }
-  };
+  }, [newMessageText, selectedFiles, selectedUser, user, fetchUnreadCount, fetchUnreadByUser]);
 
-  // 🆕 Dosya indirme
-  const handleDownloadAttachment = async (messageId, attachmentId, originalName) => {
+  const handleDownloadAttachment = useCallback(async (messageId, attachmentId, originalName) => {
     try {
       const response = await axiosInstance.get(
         `/messages/${messageId}/attachment/${attachmentId}`,
@@ -188,17 +230,21 @@ const Messages = () => {
       document.body.appendChild(link);
       link.click();
       link.remove();
+      window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Dosya indirme hatası:', error);
       alert('Dosya indirilemedi');
     }
-  };
+  }, []);
 
-  const filteredUsers = users.filter(u =>
-    `${u.firstName} ${u.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())
+  // ✅ Memoized computed values
+  const filteredUsers = useMemo(() => 
+    users.filter(u =>
+      `${u.firstName} ${u.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())
+    ), [users, searchTerm]
   );
 
-  const formatMessageTime = (date) => {
+  const formatMessageTime = useCallback((date) => {
     const messageDate = new Date(date);
     const today = new Date();
     
@@ -206,14 +252,62 @@ const Messages = () => {
       return messageDate.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
     }
     return messageDate.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-  };
+  }, []);
 
-  // 🆕 Dosya ikonu belirleme
-  const getFileIcon = (mimetype) => {
+  const getFileIcon = useCallback((mimetype) => {
     if (mimetype.startsWith('image/')) return '🖼️';
     if (mimetype === 'application/pdf') return '📄';
     return '📎';
-  };
+  }, []);
+
+  // ✅ Memoized user item component
+  const UserItem = useCallback(({ u }) => (
+    <div
+      key={u._id}
+      onClick={() => handleSelectUser(u)}
+      className={`p-4 border-b border-gray-100 cursor-pointer transition-all duration-200 ${
+        selectedUser?._id === u._id 
+          ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-l-blue-600' 
+          : 'hover:bg-gray-50'
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        <div className="relative">
+          <UserAvatar user={u} size="lg" />
+          {unreadByUser[u._id] > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold animate-pulse shadow-lg">
+              {unreadByUser[u._id] > 9 ? '9+' : unreadByUser[u._id]}
+            </span>
+          )}
+        </div>
+        
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-gray-900 truncate">
+            {u.firstName} {u.lastName}
+          </p>
+          <p className="text-xs text-gray-500 flex items-center gap-1">
+            {u.role === 'admin' ? (
+              <>
+                <span className="text-purple-600">👑</span>
+                <span>Yönetici</span>
+              </>
+            ) : (
+              <>
+                <span className="text-blue-600">👤</span>
+                <span>Kullanıcı</span>
+              </>
+            )}
+          </p>
+        </div>
+        
+        {selectedUser?._id === u._id && (
+          <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        )}
+      </div>
+    </div>
+  ), [handleSelectUser, selectedUser, unreadByUser]);
 
   return (
     <div className="h-[calc(100vh-64px)] flex bg-white shadow-sm overflow-hidden">
@@ -266,58 +360,7 @@ const Messages = () => {
               <p className="text-sm font-medium">Kullanıcı bulunamadı</p>
             </div>
           ) : (
-            filteredUsers.map((u) => (
-              <div
-                key={u._id}
-                onClick={() => handleSelectUser(u)}
-                className={`p-4 border-b border-gray-100 cursor-pointer transition-all duration-200 ${
-                  selectedUser?._id === u._id 
-                    ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-l-blue-600' 
-                    : 'hover:bg-gray-50'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  {/* Avatar */}
-                  <div className="relative">
-                    {/* 🆕 UserAvatar Component */}
-                    <UserAvatar user={u} size="lg" />
-                    {/* 🆕 Okunmamış mesaj badge */}
-                    {unreadByUser[u._id] > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold animate-pulse shadow-lg">
-                        {unreadByUser[u._id] > 9 ? '9+' : unreadByUser[u._id]}
-                      </span>
-                    )}
-                  </div>
-                  
-                  {/* Kullanıcı Bilgisi */}
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-gray-900 truncate">
-                      {u.firstName} {u.lastName}
-                    </p>
-                    <p className="text-xs text-gray-500 flex items-center gap-1">
-                      {u.role === 'admin' ? (
-                        <>
-                          <span className="text-purple-600">👑</span>
-                          <span>Yönetici</span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-blue-600">👤</span>
-                          <span>Kullanıcı</span>
-                        </>
-                      )}
-                    </p>
-                  </div>
-                  
-                  {/* Sağ ok */}
-                  {selectedUser?._id === u._id && (
-                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  )}
-                </div>
-              </div>
-            ))
+            filteredUsers.map((u) => <UserItem key={u._id} u={u} />)
           )}
         </div>
       </div>
@@ -328,7 +371,6 @@ const Messages = () => {
           <>
             {/* Sohbet Başlığı */}
             <div className="p-5 border-b border-gray-200 bg-white flex items-center gap-3 shadow-sm">
-              {/* 🆕 UserAvatar Component */}
               <UserAvatar user={selectedUser} size="xl" />
               <div className="flex-1">
                 <h3 className="font-bold text-gray-900 text-lg">
@@ -365,10 +407,8 @@ const Messages = () => {
                         className={`flex ${isMine ? 'justify-end' : 'justify-start'} animate-fadeIn`}
                       >
                         <div className={`max-w-lg ${isMine ? 'order-2' : 'order-1'}`}>
-                          {/* Avatar - Karşı tarafta */}
                           {!isMine && (
                             <div className="flex items-end gap-2 mb-1">
-                              {/* 🆕 UserAvatar Component */}
                               <UserAvatar user={msg.sender} size="sm" />
                               <span className="text-xs text-gray-500 font-medium">
                                 {msg.sender.firstName}
@@ -381,7 +421,7 @@ const Messages = () => {
                               isMine
                                 ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-br-none'
                                 : 'bg-white text-gray-900 rounded-bl-none border border-gray-200'
-                            }`}
+                            } ${msg.isSending ? 'opacity-70' : ''}`}
                           >
                             {msg.subject !== 'Mesaj' && (
                               <p className={`text-xs font-semibold mb-1 ${isMine ? 'text-blue-100' : 'text-gray-600'}`}>
@@ -389,14 +429,20 @@ const Messages = () => {
                               </p>
                             )}
                             
-                            {/* Mesaj içeriği */}
                             {msg.content && (
                               <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
                                 {msg.content}
+                                {msg.isSending && (
+                                  <span className="ml-2 inline-flex items-center">
+                                    <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                  </span>
+                                )}
                               </p>
                             )}
                             
-                            {/* 🆕 Dosya ekleri */}
                             {msg.attachments && msg.attachments.length > 0 && (
                               <div className="mt-2 space-y-2">
                                 {msg.attachments.map((attachment) => (
@@ -439,7 +485,6 @@ const Messages = () => {
               )}
             </div>
 
-            {/* 🆕 Seçili Dosyalar Önizleme */}
             {selectedFiles.length > 0 && (
               <div className="px-4 py-2 bg-gray-100 border-t border-gray-200">
                 <div className="flex flex-wrap gap-2">
@@ -462,7 +507,6 @@ const Messages = () => {
             {/* Mesaj Gönderme Alanı */}
             <div className="p-5 border-t border-gray-200 bg-white shadow-lg">
               <form onSubmit={handleSendMessage} className="flex gap-3 items-end">
-                {/* 🆕 Dosya Ekleme Butonları */}
                 <div className="flex gap-2">
                   <input
                     type="file"
