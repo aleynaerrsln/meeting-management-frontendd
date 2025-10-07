@@ -19,6 +19,7 @@ import ResetPassword from './pages/ResetPassword';
 import Sponsorships from './pages/Sponsorships';
 import Notifications from './pages/Notifications';
 import Messages from './pages/Messages';
+import ActivityPoints from './pages/ActivityPoints';
 
 function App() {
   return (
@@ -38,21 +39,19 @@ function App() {
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/profile" element={<Profile />} />
                     
-                    {/* Work Reports Routes - Tüm kullanıcılar erişebilir */}
                     <Route path="/work-reports" element={<WorkReports />} />
                     <Route path="/work-reports/create" element={<CreateWorkReport />} />
                     <Route path="/work-reports/:id" element={<WorkReportDetail />} />
                     <Route path="/work-reports/:id/edit" element={<EditWorkReport />} />
                     
-                    {/* ✅ Meetings Routes - Tüm kullanıcılar erişebilir (DÜZELTME YAPILDI) */}
                     <Route path="/meetings" element={<Meetings />} />
                     <Route path="/meetings/:id" element={<MeetingDetail />} />
                     
                     <Route path="/sponsorships" element={<Sponsorships />} />
                     <Route path="/notifications" element={<Notifications />} />
                     <Route path="/messages" element={<Messages />} />
+                    <Route path="/activity-points" element={<ActivityPoints />} />
 
-                    {/* Admin Only Routes - Sadece Users sayfası admin'e özel */}
                     <Route
                       path="/users"
                       element={

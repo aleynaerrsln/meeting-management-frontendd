@@ -25,12 +25,14 @@ const Layout = ({ children }) => {
   const isActive = (path) => location.pathname === path;
 
   const isMessagesPage = location.pathname === '/messages';
+  const isFullWidthPage = location.pathname === '/messages';
 
   const adminMenuItems = [
     { name: 'Dashboard', path: '/dashboard', icon: '📊' },
     { name: 'Kullanıcılar', path: '/users', icon: '👥' },
     { name: 'Toplantılar', path: '/meetings', icon: '📅' },
     { name: 'Çalışma Raporları', path: '/work-reports', icon: '📝' },
+    { name: 'Çalışma İstatistikleri', path: '/activity-points', icon: '📈' }, // 🆕 YENİ EKLENEN
     { name: 'Sponsorluklar', path: '/sponsorships', icon: '🤝' },
     { name: 'Mesajlar', path: '/messages', icon: '💬' },
   ];
@@ -39,6 +41,7 @@ const Layout = ({ children }) => {
     { name: 'Dashboard', path: '/dashboard', icon: '📊' },
     { name: 'Toplantılarım', path: '/meetings', icon: '📅' },
     { name: 'Çalışma Raporlarım', path: '/work-reports', icon: '📝' },
+    { name: 'Çalışma İstatistikleri', path: '/activity-points', icon: '📈' }, // 🆕 YENİ EKLENEN
     { name: 'Sponsorluklar', path: '/sponsorships', icon: '🤝' },
     { name: 'Mesajlar', path: '/messages', icon: '💬' },
   ];
