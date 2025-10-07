@@ -17,7 +17,7 @@ const Meetings = () => {
   const { user, isAdmin } = useAuth();
   const [meetings, setMeetings] = useState([]);
   const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // ✅ SADECE BU DEĞİŞTİ: true -> false
   const [showModal, setShowModal] = useState(false);
   const [editingMeeting, setEditingMeeting] = useState(null);
   const [exporting, setExporting] = useState(false);
@@ -254,19 +254,6 @@ const Meetings = () => {
       return acc;
     }, {});
   }, [users]);
-
-  // Loading state - Sayfa anında açılıyor
-  if (loading && meetings.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh]">
-        <div className="relative">
-          <div className="w-16 h-16 border-4 border-blue-200 rounded-full animate-pulse"></div>
-          <div className="absolute top-0 left-0 w-16 h-16 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
-        </div>
-        <p className="mt-4 text-gray-600">Toplantılar yükleniyor...</p>
-      </div>
-    );
-  }
 
   return (
     <div>

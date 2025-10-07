@@ -467,14 +467,7 @@ const MeetingDetail = () => {
                     Toplantı notlarından oluşturulan özet rapor
                   </p>
                 </div>
-                {isAdmin && (
-                  <button
-                    onClick={() => setShowReportModal(true)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
-                  >
-                    📤 Çalışma Raporlarına Gönder
-                  </button>
-                )}
+
               </div>
 
               <div className="bg-white rounded-lg p-6 shadow-sm">

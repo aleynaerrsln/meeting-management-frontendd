@@ -9,10 +9,10 @@ const Messages = () => {
   const location = useLocation();
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
-  const hasSelectedUserRef = useRef(false); // ✅ Sadece 1 kez seçim için
+  const hasSelectedUserRef = useRef(false);
   
   const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // ✅ SADECE BU DEĞİŞTİ
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadByUser, setUnreadByUser] = useState({});
   
@@ -24,7 +24,6 @@ const Messages = () => {
   const [sending, setSending] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
 
-  // ✅ Memoized callbacks - dependency'ler minimize edildi
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
@@ -77,7 +76,6 @@ const Messages = () => {
     }
   }, [fetchUnreadCount, fetchUnreadByUser]);
 
-  // ✅ İlk yükleme - Sadece 1 kez
   useEffect(() => {
     const initializeMessages = async () => {
       await fetchUsers();
@@ -88,33 +86,30 @@ const Messages = () => {
     initializeMessages();
   }, [fetchUsers, fetchUnreadCount, fetchUnreadByUser]);
 
-  // ✅ Location'dan gelen kullanıcı seçimi - useRef ile sadece 1 kez
   useEffect(() => {
     if (users.length > 0 && location.state?.selectedUserId && !hasSelectedUserRef.current) {
       const targetUser = users.find(u => u._id === location.state.selectedUserId);
       if (targetUser) {
         handleSelectUser(targetUser);
-        hasSelectedUserRef.current = true; // ✅ Bir daha çalışmaz
+        hasSelectedUserRef.current = true;
       }
     }
   }, [users, location.state?.selectedUserId, handleSelectUser]);
 
-  // ✅ Location tamamen değiştiğinde reset
   useEffect(() => {
     return () => {
       hasSelectedUserRef.current = false;
     };
   }, [location.pathname]);
 
-  // ✅ Conversation değiştiğinde scroll - throttle ile optimize
   useEffect(() => {
     if (conversation.length > 0) {
       const timer = setTimeout(() => {
         scrollToBottom();
-      }, 100); // ✅ 100ms throttle
+      }, 100);
       return () => clearTimeout(timer);
     }
-  }, [conversation.length, scrollToBottom]); // ✅ length ile optimize edildi
+  }, [conversation.length, scrollToBottom]);
 
   const handleFileSelect = useCallback((e) => {
     const files = Array.from(e.target.files);
@@ -147,7 +142,6 @@ const Messages = () => {
     
     if ((!newMessageText.trim() && selectedFiles.length === 0) || !selectedUser) return;
 
-    // ✅ Optimistic update - mesajı hemen ekle
     const tempMessage = {
       _id: `temp-${Date.now()}`,
       sender: { _id: user._id, firstName: user.firstName, lastName: user.lastName },
@@ -162,13 +156,11 @@ const Messages = () => {
       })),
       createdAt: new Date().toISOString(),
       isRead: false,
-      isSending: true // ✅ Gönderim durumu
+      isSending: true
     };
 
-    // ✅ Anında conversation'a ekle
     setConversation(prev => [...prev, tempMessage]);
     
-    // ✅ Input'ları temizle
     const messageToSend = newMessageText;
     const filesToSend = [...selectedFiles];
     setNewMessageText('');
@@ -191,7 +183,6 @@ const Messages = () => {
         }
       });
 
-      // ✅ Gerçek mesajı API'den al ve temp mesajı değiştir
       setConversation(prev => 
         prev.map(msg => 
           msg._id === tempMessage._id ? response.data.data : msg
@@ -203,10 +194,8 @@ const Messages = () => {
     } catch (error) {
       console.error('Mesaj gönderme hatası:', error);
       
-      // ✅ Hata olursa temp mesajı kaldır
       setConversation(prev => prev.filter(msg => msg._id !== tempMessage._id));
       
-      // ✅ Input'ları geri yükle
       setNewMessageText(messageToSend);
       setSelectedFiles(filesToSend);
       
@@ -237,7 +226,6 @@ const Messages = () => {
     }
   }, []);
 
-  // ✅ Memoized computed values
   const filteredUsers = useMemo(() => 
     users.filter(u =>
       `${u.firstName} ${u.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())
@@ -260,7 +248,6 @@ const Messages = () => {
     return '📎';
   }, []);
 
-  // ✅ Memoized user item component
   const UserItem = useCallback(({ u }) => (
     <div
       key={u._id}
@@ -311,9 +298,7 @@ const Messages = () => {
 
   return (
     <div className="h-[calc(100vh-64px)] flex bg-white shadow-sm overflow-hidden">
-      {/* Sol Taraf - Kullanıcı Listesi */}
       <div className="w-96 border-r border-gray-200 flex flex-col bg-white">
-        {/* Başlık */}
         <div className="p-5 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg">
           <div className="flex items-center justify-between mb-1">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -331,7 +316,6 @@ const Messages = () => {
           )}
         </div>
 
-        {/* Arama */}
         <div className="p-4 border-b border-gray-200 bg-white">
           <div className="relative">
             <input
@@ -347,7 +331,6 @@ const Messages = () => {
           </div>
         </div>
 
-        {/* Kullanıcılar */}
         <div className="flex-1 overflow-y-auto">
           {loading ? (
             <div className="p-8 text-center text-gray-500">
@@ -365,11 +348,9 @@ const Messages = () => {
         </div>
       </div>
 
-      {/* Sağ Taraf - Sohbet Alanı */}
       <div className="flex-1 flex flex-col">
         {selectedUser ? (
           <>
-            {/* Sohbet Başlığı */}
             <div className="p-5 border-b border-gray-200 bg-white flex items-center gap-3 shadow-sm">
               <UserAvatar user={selectedUser} size="xl" />
               <div className="flex-1">
@@ -387,7 +368,6 @@ const Messages = () => {
               </div>
             </div>
 
-            {/* Mesajlar */}
             <div className="flex-1 overflow-y-auto p-6 bg-gray-50" style={{ backgroundImage: 'linear-gradient(to bottom, #f9fafb 0%, #f3f4f6 100%)' }}>
               {conversation.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-gray-500">
@@ -504,7 +484,6 @@ const Messages = () => {
               </div>
             )}
 
-            {/* Mesaj Gönderme Alanı */}
             <div className="p-5 border-t border-gray-200 bg-white shadow-lg">
               <form onSubmit={handleSendMessage} className="flex gap-3 items-end">
                 <div className="flex gap-2">
