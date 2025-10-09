@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useNotifications } from '../context/NotificationContext';
 import {
   Fab,
   Dialog,
@@ -26,9 +27,7 @@ import {
   Chat as ChatIcon,
   Close as CloseIcon,
   Search as SearchIcon,
-  Send as SendIcon,
-  AdminPanelSettings as AdminIcon,
-  Person as PersonIcon
+  AdminPanelSettings as AdminIcon
 } from '@mui/icons-material';
 import axiosInstance from '../utils/axios';
 
@@ -40,44 +39,25 @@ const FloatingChatButton = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const { unreadMessagesCount } = useNotifications(); // ✅ Context'ten al
+  
   const [open, setOpen] = useState(false);
   const [users, setUsers] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [unreadByUser, setUnreadByUser] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    fetchUsers();
-    fetchUnreadCount();
-    fetchUnreadByUser();
-
-    const interval = setInterval(() => {
-      fetchUnreadCount();
-      fetchUnreadByUser();
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  const fetchUsers = async () => {
+  // ✅ Kullanıcı listesini çek
+  const fetchUsers = useCallback(async () => {
     try {
       const response = await axiosInstance.get('/messages/users');
       setUsers(response.data.data);
     } catch (error) {
       console.error('Kullanıcı listesi hatası:', error);
     }
-  };
+  }, []);
 
-  const fetchUnreadCount = async () => {
-    try {
-      const response = await axiosInstance.get('/messages/unread-count');
-      setUnreadCount(response.data.count);
-    } catch (error) {
-      console.error('Okunmamış mesaj hatası:', error);
-    }
-  };
-
-  const fetchUnreadByUser = async () => {
+  // ✅ Kullanıcı bazlı okunmamış mesaj sayıları
+  const fetchUnreadByUser = useCallback(async () => {
     try {
       const response = await axiosInstance.get('/messages/unread-by-user');
       const unreadMap = {};
@@ -88,87 +68,79 @@ const FloatingChatButton = () => {
     } catch (error) {
       console.error('Kullanıcı bazlı okunmamış mesaj hatası:', error);
     }
-  };
+  }, []);
 
-  const handleUserClick = (userId) => {
+  // ✅ İlk yükleme
+  useEffect(() => {
+    fetchUsers();
+    fetchUnreadByUser();
+  }, [fetchUsers, fetchUnreadByUser]);
+
+  const handleUserClick = useCallback((userId) => {
     navigate('/messages', { state: { selectedUserId: userId } });
     setOpen(false);
-  };
+  }, [navigate]);
 
-  const filteredUsers = users.filter(user =>
-    `${user.firstName} ${user.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())
+  // ✅ Filtrelenmiş kullanıcılar - memoized
+  const filteredUsers = useMemo(() => 
+    users.filter(user =>
+      `${user.firstName} ${user.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())
+    ),
+    [users, searchTerm]
   );
 
-  const getInitials = (firstName, lastName) => {
-    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
-  };
+  const getInitials = useCallback((firstName, lastName) => {
+    return `${firstName?.[0] || ''}${lastName?.[0] || ''}`.toUpperCase();
+  }, []);
 
-  const getAvatarColor = (name) => {
-    const colors = [
-      '#1976d2', '#dc004e', '#9c27b0', '#f57c00', 
-      '#388e3c', '#d32f2f', '#0288d1', '#7b1fa2'
-    ];
-    const index = name.charCodeAt(0) % colors.length;
-    return colors[index];
-  };
+  const getAvatarColor = useCallback((role) => {
+    return role === 'admin' ? '#1976d2' : '#2e7d32';
+  }, []);
 
   return (
     <>
-      {/* Floating Action Button */}
       <Fab
         color="primary"
-        aria-label="chat"
+        aria-label="messages"
         onClick={() => setOpen(true)}
         sx={{
           position: 'fixed',
-          bottom: { xs: 16, sm: 24 },
-          right: { xs: 16, sm: 24 },
+          bottom: 24,
+          right: 24,
           zIndex: 1000,
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          '&:hover': {
-            background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
-            transform: 'scale(1.1)',
-          },
-          transition: 'all 0.3s ease'
         }}
       >
-        <Badge badgeContent={unreadCount} color="error" max={9}>
+        <Badge badgeContent={unreadMessagesCount} color="error">
           <ChatIcon />
         </Badge>
       </Fab>
 
-      {/* Dialog */}
       <Dialog
         open={open}
-        onClose={() => setOpen(false)}
         TransitionComponent={Transition}
+        keepMounted
+        onClose={() => setOpen(false)}
         fullScreen={isMobile}
         maxWidth="sm"
         fullWidth
         PaperProps={{
           sx: {
-            borderRadius: isMobile ? 0 : 3,
-            maxHeight: isMobile ? '100vh' : '80vh'
+            borderRadius: isMobile ? 0 : 2,
+            height: isMobile ? '100%' : '600px',
           }
         }}
       >
-        {/* Header */}
-        <DialogTitle
-          sx={{
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            color: 'white',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            py: 2
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <DialogTitle sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between',
+          bgcolor: 'primary.main',
+          color: 'white'
+        }}>
+          <Typography variant="h6" component="div" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <ChatIcon />
-            <Typography variant="h6" component="div" fontWeight="bold">
-              Yeni Sohbet
-            </Typography>
-          </Box>
+            Mesajlaşma
+          </Typography>
           <IconButton
             edge="end"
             color="inherit"
@@ -179,159 +151,88 @@ const FloatingChatButton = () => {
           </IconButton>
         </DialogTitle>
 
-        {/* Search */}
         <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
           <TextField
             fullWidth
             size="small"
-            placeholder="Kişi ara..."
+            placeholder="Kullanıcı ara..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchIcon color="action" />
+                  <SearchIcon />
                 </InputAdornment>
               ),
-            }}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: 2,
-              }
             }}
           />
         </Box>
 
-        {/* User List */}
         <DialogContent sx={{ p: 0 }}>
-          {filteredUsers.length === 0 ? (
-            <Box
-              sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                py: 8,
-                px: 2
-              }}
-            >
-              <SearchIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
-              <Typography variant="body1" color="text.secondary">
-                Kullanıcı bulunamadı
-              </Typography>
-            </Box>
-          ) : (
-            <List sx={{ py: 0 }}>
-              {filteredUsers.map((user, index) => (
-                <ListItem
-                  key={user._id}
-                  disablePadding
+          <List sx={{ width: '100%' }}>
+            {filteredUsers.map((user) => (
+              <ListItem key={user._id} disablePadding>
+                <ListItemButton 
+                  onClick={() => handleUserClick(user._id)}
                   sx={{
-                    borderBottom: index !== filteredUsers.length - 1 ? 1 : 0,
-                    borderColor: 'divider'
+                    '&:hover': {
+                      bgcolor: 'action.hover',
+                    }
                   }}
                 >
-                  <ListItemButton
-                    onClick={() => handleUserClick(user._id)}
-                    sx={{
-                      py: 2,
-                      px: 3,
-                      '&:hover': {
-                        backgroundColor: 'rgba(102, 126, 234, 0.08)',
-                      }
-                    }}
-                  >
-                    <ListItemAvatar>
-                      <Badge
-                        badgeContent={unreadByUser[user._id] || 0}
-                        color="error"
-                        max={9}
-                        overlap="circular"
+                  <ListItemAvatar>
+                    <Badge 
+                      badgeContent={unreadByUser[user._id] || 0} 
+                      color="error"
+                      overlap="circular"
+                    >
+                      <Avatar
+                        sx={{
+                          bgcolor: getAvatarColor(user.role),
+                          width: 48,
+                          height: 48
+                        }}
                       >
-                        <Avatar
-                          sx={{
-                            bgcolor: getAvatarColor(user.firstName),
-                            width: 48,
-                            height: 48,
-                            fontWeight: 'bold'
-                          }}
-                        >
-                          {getInitials(user.firstName, user.lastName)}
-                        </Avatar>
-                      </Badge>
-                    </ListItemAvatar>
-
-                    <ListItemText
-                      primary={
-                        <Typography variant="subtitle1" fontWeight={600}>
+                        {getInitials(user.firstName, user.lastName)}
+                      </Avatar>
+                    </Badge>
+                  </ListItemAvatar>
+                  <ListItemText
+                    primary={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
                           {user.firstName} {user.lastName}
                         </Typography>
-                      }
-                      secondary={
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                          {user.role === 'admin' ? (
-                            <>
-                              <AdminIcon sx={{ fontSize: 16, color: 'purple' }} />
-                              <Typography variant="caption" color="text.secondary">
-                                Yönetici
-                              </Typography>
-                            </>
-                          ) : (
-                            <>
-                              <PersonIcon sx={{ fontSize: 16, color: 'primary.main' }} />
-                              <Typography variant="caption" color="text.secondary">
-                                Kullanıcı
-                              </Typography>
-                            </>
-                          )}
-                        </Box>
-                      }
-                    />
-                  </ListItemButton>
-                </ListItem>
-              ))}
-            </List>
-          )}
-        </DialogContent>
+                        {user.role === 'admin' && (
+                          <Chip
+                            icon={<AdminIcon sx={{ fontSize: 14 }} />}
+                            label="Admin"
+                            size="small"
+                            color="primary"
+                            sx={{ height: 20 }}
+                          />
+                        )}
+                      </Box>
+                    }
+                    secondary={
+                      <Typography variant="body2" color="text.secondary">
+                        {user.departments?.join(', ') || 'Departman belirtilmemiş'}
+                      </Typography>
+                    }
+                  />
+                </ListItemButton>
+              </ListItem>
+            ))}
 
-        {/* Footer Button */}
-        <Box
-          sx={{
-            p: 2,
-            borderTop: 1,
-            borderColor: 'divider',
-            backgroundColor: 'grey.50'
-          }}
-        >
-          <Box
-            onClick={() => {
-              navigate('/messages');
-              setOpen(false);
-            }}
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 1,
-              py: 1.5,
-              px: 2,
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              color: 'white',
-              borderRadius: 2,
-              cursor: 'pointer',
-              transition: 'all 0.3s ease',
-              '&:hover': {
-                transform: 'scale(1.02)',
-                boxShadow: 3
-              }
-            }}
-          >
-            <SendIcon />
-            <Typography variant="body2" fontWeight={600}>
-              Tüm Mesajları Görüntüle
-            </Typography>
-          </Box>
-        </Box>
+            {filteredUsers.length === 0 && (
+              <Box sx={{ p: 4, textAlign: 'center' }}>
+                <Typography variant="body1" color="text.secondary">
+                  {searchTerm ? 'Kullanıcı bulunamadı' : 'Henüz kullanıcı yok'}
+                </Typography>
+              </Box>
+            )}
+          </List>
+        </DialogContent>
       </Dialog>
     </>
   );

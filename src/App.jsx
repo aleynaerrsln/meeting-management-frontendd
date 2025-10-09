@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { NotificationProvider } from './context/NotificationContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 
@@ -24,52 +25,54 @@ import ActivityPoints from './pages/ActivityPoints';
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password/:token" element={<ResetPassword />} />
+      <NotificationProvider>
+        <Router>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password/:token" element={<ResetPassword />} />
 
-          <Route
-            path="/*"
-            element={
-              <ProtectedRoute>
-                <Layout>
-                  <Routes>
-                    <Route path="/dashboard" element={<Dashboard />} />
-                    <Route path="/profile" element={<Profile />} />
-                    
-                    <Route path="/work-reports" element={<WorkReports />} />
-                    <Route path="/work-reports/create" element={<CreateWorkReport />} />
-                    <Route path="/work-reports/:id" element={<WorkReportDetail />} />
-                    <Route path="/work-reports/:id/edit" element={<EditWorkReport />} />
-                    
-                    <Route path="/meetings" element={<Meetings />} />
-                    <Route path="/meetings/:id" element={<MeetingDetail />} />
-                    
-                    <Route path="/sponsorships" element={<Sponsorships />} />
-                    <Route path="/notifications" element={<Notifications />} />
-                    <Route path="/messages" element={<Messages />} />
-                    <Route path="/activity-points" element={<ActivityPoints />} />
+            <Route
+              path="/*"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Routes>
+                      <Route path="/dashboard" element={<Dashboard />} />
+                      <Route path="/profile" element={<Profile />} />
+                      
+                      <Route path="/work-reports" element={<WorkReports />} />
+                      <Route path="/work-reports/create" element={<CreateWorkReport />} />
+                      <Route path="/work-reports/:id" element={<WorkReportDetail />} />
+                      <Route path="/work-reports/:id/edit" element={<EditWorkReport />} />
+                      
+                      <Route path="/meetings" element={<Meetings />} />
+                      <Route path="/meetings/:id" element={<MeetingDetail />} />
+                      
+                      <Route path="/sponsorships" element={<Sponsorships />} />
+                      <Route path="/notifications" element={<Notifications />} />
+                      <Route path="/messages" element={<Messages />} />
+                      <Route path="/activity-points" element={<ActivityPoints />} />
 
-                    <Route
-                      path="/users"
-                      element={
-                        <ProtectedRoute adminOnly>
-                          <Users />
-                        </ProtectedRoute>
-                      }
-                    />
+                      <Route
+                        path="/users"
+                        element={
+                          <ProtectedRoute adminOnly>
+                            <Users />
+                          </ProtectedRoute>
+                        }
+                      />
 
-                    <Route path="/" element={<Navigate to="/dashboard" />} />
-                    <Route path="*" element={<Navigate to="/dashboard" />} />
-                  </Routes>
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
-      </Router>
+                      <Route path="/" element={<Navigate to="/dashboard" />} />
+                      <Route path="*" element={<Navigate to="/dashboard" />} />
+                    </Routes>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </Router>
+      </NotificationProvider>
     </AuthProvider>
   );
 }

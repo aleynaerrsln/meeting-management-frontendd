@@ -5,16 +5,6 @@ const UserAvatar = ({ user, size = 'md', className = '' }) => {
   const [imageError, setImageError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
 
-  // 🆕 Debug log
-  useEffect(() => {
-    console.log('UserAvatar - User data:', {
-      user,
-      hasProfilePhoto: user?.hasProfilePhoto,
-      profilePhoto: user?.profilePhoto,
-      userId: user?._id || user?.id
-    });
-  }, [user]);
-
   // Boyut ayarları
   const sizeClasses = {
     xs: 'w-6 h-6 text-xs',
@@ -34,9 +24,6 @@ const UserAvatar = ({ user, size = 'md', className = '' }) => {
   const photoUrl = hasPhoto && userId
     ? `${axiosInstance.defaults.baseURL}/auth/profile-photo/${userId}`
     : null;
-
-  // 🆕 Debug log
-  console.log('UserAvatar - Photo URL:', photoUrl, 'Has Photo:', hasPhoto);
 
   // İsim baş harfleri
   const initials = `${user?.firstName?.[0] || ''}${user?.lastName?.[0] || ''}`.toUpperCase();
