@@ -86,44 +86,17 @@ export default function ActivityPoints() {
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white">
+      {/* Stats Card */}
+      <div className="mb-8">
+        <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-lg p-6 text-white max-w-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-blue-100 text-sm">Toplam Katılımcı</p>
-              <p className="text-3xl font-bold mt-1">{leaderboard.length}</p>
+              <p className="text-blue-100 text-sm font-medium">Toplam Katılımcı</p>
+              <p className="text-4xl font-bold mt-2">{leaderboard.length}</p>
             </div>
-            <FiUsers className="text-5xl text-blue-200" />
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-6 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-green-100 text-sm">Toplam Puan</p>
-              <p className="text-3xl font-bold mt-1">
-                {leaderboard.reduce((sum, item) => sum + item.totalPoints, 0)}
-              </p>
+            <div className="bg-white bg-opacity-20 rounded-full p-4">
+              <FiUsers className="text-3xl" />
             </div>
-            <FiAward className="text-5xl text-green-200" />
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-lg p-6 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-purple-100 text-sm">Ortalama Puan</p>
-              <p className="text-3xl font-bold mt-1">
-                {leaderboard.length > 0
-                  ? Math.round(
-                      leaderboard.reduce((sum, item) => sum + item.totalPoints, 0) /
-                        leaderboard.length
-                    )
-                  : 0}
-              </p>
-            </div>
-            <FiTrendingUp className="text-5xl text-purple-200" />
           </div>
         </div>
       </div>
@@ -176,19 +149,25 @@ export default function ActivityPoints() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        {item.profilePhoto ? (
+                        {item.hasProfilePhoto ? (
                           <img
-                            src={`http://localhost:5000${item.profilePhoto}`}
+                            src={`http://localhost:5000/api/auth/profile-photo/${item._id}`}
                             alt={`${item.firstName} ${item.lastName}`}
                             className="h-10 w-10 rounded-full object-cover mr-3"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              e.target.nextElementSibling.style.display = 'flex';
+                            }}
                           />
-                        ) : (
-                          <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center mr-3">
-                            <span className="text-blue-600 font-semibold">
-                              {item.firstName?.[0]}{item.lastName?.[0]}
-                            </span>
-                          </div>
-                        )}
+                        ) : null}
+                        <div
+                          className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center mr-3"
+                          style={{ display: item.hasProfilePhoto ? 'none' : 'flex' }}
+                        >
+                          <span className="text-blue-600 font-semibold">
+                            {item.firstName?.[0]}{item.lastName?.[0]}
+                          </span>
+                        </div>
                         <div>
                           <div className="text-sm font-medium text-gray-900">
                             {item.firstName} {item.lastName}

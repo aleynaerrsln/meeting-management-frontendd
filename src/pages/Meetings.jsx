@@ -17,7 +17,7 @@ const Meetings = () => {
   const { user, isAdmin } = useAuth();
   const [meetings, setMeetings] = useState([]);
   const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(false); // ✅ SADECE BU DEĞİŞTİ: true -> false
+  const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingMeeting, setEditingMeeting] = useState(null);
   const [exporting, setExporting] = useState(false);
@@ -247,6 +247,55 @@ const Meetings = () => {
         : [...prev.participants, userId]
     }));
   }, []);
+
+  // 🆕 Tümünü Seç/Temizle (Toggle)
+  const handleSelectAll = useCallback(() => {
+    const allUserIds = users.map(u => u._id);
+    const allSelected = allUserIds.every(id => formData.participants.includes(id));
+    
+    if (allSelected) {
+      // Hepsi seçiliyse, tümünü temizle
+      setFormData(prev => ({
+        ...prev,
+        participants: []
+      }));
+    } else {
+      // Değilse, tümünü seç
+      setFormData(prev => ({
+        ...prev,
+        participants: allUserIds
+      }));
+    }
+  }, [users, formData.participants]);
+
+  // 🆕 Seçimi Temizle
+  const handleDeselectAll = useCallback(() => {
+    setFormData(prev => ({
+      ...prev,
+      participants: []
+    }));
+  }, []);
+
+  // 🆕 Birim Bazlı Seçim
+  const handleSelectDepartment = useCallback((dept) => {
+    const deptUsers = departmentUsers[dept] || [];
+    const deptUserIds = deptUsers.map(u => u._id);
+    
+    const allSelected = deptUserIds.every(id => formData.participants.includes(id));
+    
+    if (allSelected) {
+      setFormData(prev => ({
+        ...prev,
+        participants: prev.participants.filter(id => !deptUserIds.includes(id))
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        participants: [...new Set([...prev.participants, ...deptUserIds])]
+      }));
+    }
+  }, [formData.participants]);
+
   // ✅ Memoized department users
   const departmentUsers = useMemo(() => {
     return DEPARTMENTS.reduce((acc, dept) => {
@@ -549,36 +598,73 @@ const Meetings = () => {
                 />
               </div>
 
+              {/* 🆕 Yeni Katılımcı Seçim Sistemi */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-3">
                   Katılımcılar ({formData.participants.length} seçili)
                 </label>
-                <div className="space-y-4">
-                  {DEPARTMENTS.map((dept) => {
-                    const deptUsers = departmentUsers[dept] || [];
-                    if (deptUsers.length === 0) return null;
 
-                    return (
-                      <div key={dept} className="border border-gray-200 rounded-lg p-4">
-                        <h4 className="font-semibold text-gray-900 mb-3">{dept}</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                          {deptUsers.map((u) => (
-                            <label key={u._id} className="flex items-center p-2 hover:bg-gray-50 rounded cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={formData.participants.includes(u._id)}
-                                onChange={() => handleParticipantToggle(u._id)}
-                                className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
-                              />
-                              <span className="ml-3 text-sm text-gray-700">
-                                {u.firstName} {u.lastName}
-                              </span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
+                {/* Birim Butonları */}
+                <div className="mb-4">
+                  <p className="text-xs text-gray-600 mb-2">Ekip Seçimi (tıklayarak tüm ekibi ekle/çıkar):</p>
+                  <div className="flex flex-wrap gap-2">
+                    {DEPARTMENTS.map((dept) => {
+                      const deptUsers = departmentUsers[dept] || [];
+                      if (deptUsers.length === 0) return null;
+
+                      const deptUserIds = deptUsers.map(u => u._id);
+                      const allSelected = deptUserIds.every(id => formData.participants.includes(id));
+
+                      return (
+                        <button
+                          key={dept}
+                          type="button"
+                          onClick={() => handleSelectDepartment(dept)}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                            allSelected
+                              ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          {allSelected && '✓ '}
+                          {dept}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Tüm Üyeler Listesi */}
+                <div className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-sm font-medium text-gray-700">Tüm Üyeler:</p>
+                    <button
+                      type="button"
+                      onClick={handleSelectAll}
+                      className="px-3 py-1 text-xs bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition"
+                    >
+                      ✓ Tümünü Seç
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 max-h-64 overflow-y-auto">
+                    {users.map((u) => (
+                      <label
+                        key={u._id}
+                        className="flex items-center p-2 hover:bg-gray-50 rounded cursor-pointer transition"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={formData.participants.includes(u._id)}
+                          onChange={() => handleParticipantToggle(u._id)}
+                          className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                        />
+                        <span className="ml-3 text-sm text-gray-700">
+                          {u.firstName} {u.lastName}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
 

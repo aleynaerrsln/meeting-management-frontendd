@@ -463,26 +463,50 @@ const WorkReports = () => {
                         </button>
 
                         {isAdmin ? (
-                          report.status === 'submitted' && (
-                            <>
+                          <>
+                            {/* Gönderilmiş raporlar için Onayla/Reddet */}
+                            {report.status === 'submitted' && (
+                              <>
+                                <button
+                                  onClick={() => handleStatusChange(report._id, 'approved')}
+                                  className="text-green-600 hover:text-green-800"
+                                  title="Onayla"
+                                >
+                                  ✅
+                                </button>
+                                <button
+                                  onClick={() => handleStatusChange(report._id, 'rejected')}
+                                  className="text-red-600 hover:text-red-800"
+                                  title="Reddet"
+                                >
+                                  ❌
+                                </button>
+                              </>
+                            )}
+
+                            {/* 🆕 Reddedilmiş raporlar için Tekrar Onayla */}
+                            {report.status === 'rejected' && (
                               <button
                                 onClick={() => handleStatusChange(report._id, 'approved')}
-                                className="text-green-600 hover:text-green-800"
-                                title="Onayla"
+                                className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-xs font-medium"
+                                title="Tekrar Onayla"
                               >
-                                ✅
+                                ✅ Onayla
                               </button>
-                              <button
-                                onClick={() => handleStatusChange(report._id, 'rejected')}
-                                className="text-red-600 hover:text-red-800"
-                                title="Reddet"
-                              >
-                                ❌
-                              </button>
-                            </>
-                          )
+                            )}
+
+                            {/* Silme butonu - Tüm durumlar için */}
+                            <button
+                              onClick={() => handleDelete(report._id)}
+                              className="text-red-600 hover:text-red-800"
+                              title="Sil"
+                            >
+                              🗑️
+                            </button>
+                          </>
                         ) : (
                           <>
+                            {/* Kullanıcılar onaylanmamış/reddedilmemiş raporları düzenleyebilir */}
                             {report.status !== 'approved' && report.status !== 'rejected' && (
                               <button
                                 onClick={handleNavigate(`/work-reports/${report._id}/edit`)}
@@ -492,7 +516,9 @@ const WorkReports = () => {
                                 ✏️
                               </button>
                             )}
-                            {report.status === 'draft' && (
+                            
+                            {/* 🆕 Kullanıcılar kendi raporlarını silebilir (onaylanmamışsa) */}
+                            {report.status !== 'approved' && (
                               <button
                                 onClick={() => handleDelete(report._id)}
                                 className="text-red-600 hover:text-red-800"
